@@ -1,0 +1,22 @@
+material/
+# Mac特有の一時ファイル
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Photoshopの一時ファイルやバックアップ
+# *.psd
+*.psb
+*.tmp
+*.bak
+
+# 動画編集などの中間ファイル
+*.prproj
+*.aep
+.render/
+
+# サムネイルキャッシュ
+Thumbs.db
+
+# 誤って大きなPDFなどを入れないための保険（必要なら）
+# *.pdf
