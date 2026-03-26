@@ -38,13 +38,13 @@
 <script>
     const USER = 'dpolyglot0310-star';
     const REPO = 'assets';
-    const PATH = 'assets'; 
+    const PATH = 'assets';
     let currentFiles = [];
 
     // 初期化：既存のlist.jsonを読み込む
     async function init() {
         try {
-            const response = await fetch(`./${PATH}/list.json?t=${Date.now()}`);
+            const response = await fetch(`./list.json?t=${Date.now()}`);
             if (!response.ok) throw new Error();
             currentFiles = await response.json();
             renderGallery(currentFiles);
