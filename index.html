@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>Asset Catalog (Deep Scan)</title>
+    <title>Asset Catalog (Auto Scan)</title>
     <style>
         body { font-family: -apple-system, sans-serif; background: #f0f2f5; margin: 0; padding: 20px; color: #333; }
         header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; background: white; padding: 15px 20px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); position: sticky; top: 10px; z-index: 100; }
@@ -28,7 +28,7 @@
         <div id="status" style="font-size:11px; color:#888;">Checking list.json...</div>
     </div>
     <div class="btn-group">
-        <button class="btn-api" onclick="fetchDeepScan()">APIスキャン</button>
+        <button class="btn-api" onclick="fetchDeepScan()">APIスキャン実行</button>
         <button id="save-btn" class="btn-save" onclick="downloadList()">list.jsonを保存</button>
     </div>
 </header>
@@ -38,41 +38,41 @@
 <script>
     const USER = 'dpolyglot0310-star';
     const REPO = 'assets';
-    // スキャン対象：assetsフォルダそのもの（中のmoveも自動で含まれます）
+    // このフォルダの中にあるものは、フォルダ名に関わらず全てスキャンします
     const BASE_PATH = 'assets'; 
 
     async function init() {
         try {
-            // 最も確実なパス（assets/list.json）を指定
-            const response = await fetch(`./${BASE_PATH}/list.json?t=${Date.now()}`);
+            const response = await fetch(`./${BASE_PATH}/list.json?nocache=${Date.now()}`);
             if (!response.ok) throw new Error();
-            currentFiles = await response.json();
-            renderGallery(currentFiles);
-            document.getElementById('status').innerText = `Loaded: ${currentFiles.length} items`;
+            const files = await response.json();
+            renderGallery(files);
+            document.getElementById('status').innerText = `Loaded: ${files.length} items`;
         } catch (e) {
-            document.getElementById('status').innerText = "list.jsonが見つかりません。スキャンしてassets/内に保存してください。";
+            document.getElementById('status').innerText = "list.jsonが見つかりません。スキャンしてください。";
         }
     }
 
     async function fetchDeepScan() {
-        document.getElementById('status').innerText = "Scanning GitHub (Recursive)...";
+        document.getElementById('status').innerText = "Scanning all folders...";
         try {
             const repoInfo = await fetch(`https://api.github.com/repos/${USER}/${REPO}`);
             const repoData = await repoInfo.json();
             const response = await fetch(`https://api.github.com/repos/${USER}/${REPO}/git/trees/${repoData.default_branch}?recursive=1`);
             const data = await response.json();
             
-            // 画像と動画を抽出
-            currentFiles = data.tree.filter(file => 
+            // assets/ フォルダ配下にある全てのメディアファイルを抽出（フォルダ名は問わない）
+            const filteredFiles = data.tree.filter(file => 
                 file.path.startsWith(BASE_PATH + '/') && 
                 /\.(gif|jpe?g|png|webp|svg|mp4|webm|mov)$/i.test(file.path)
             );
             
-            renderGallery(currentFiles);
-            document.getElementById('status').innerText = `Scan Complete! (${currentFiles.length} items)`;
+            renderGallery(filteredFiles);
+            window.latestScannedData = filteredFiles;
+            document.getElementById('status').innerText = `Scan Complete! (${filteredFiles.length} items)`;
             document.getElementById('save-btn').style.display = 'block';
         } catch (e) {
-            document.getElementById('status').innerText = "API Error. Check Console.";
+            document.getElementById('status').innerText = "API Error.";
         }
     }
 
@@ -118,7 +118,7 @@
     }
 
     function downloadList() {
-        const blob = new Blob([JSON.stringify(currentFiles, null, 2)], { type: 'application/json' });
+        const blob = new Blob([JSON.stringify(window.latestScannedData, null, 2)], { type: 'application/json' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
