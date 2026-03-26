@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>Asset Catalog (Auto Scan)</title>
+    <title>Asset Catalog (Advanced)</title>
     <style>
         body { font-family: -apple-system, sans-serif; background: #f0f2f5; margin: 0; padding: 20px; color: #333; }
         header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; background: white; padding: 15px 20px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); position: sticky; top: 10px; z-index: 100; }
@@ -10,14 +10,23 @@
         button { border: none; padding: 8px 14px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 500; transition: 0.2s; }
         .btn-api { background: #e1e4e8; color: #24292e; }
         .btn-save { background: #28a745; color: white; display: none; }
+        
         .folder-section { margin-bottom: 40px; }
         .folder-title { font-size: 13px; font-weight: bold; color: #007aff; background: #eef6ff; padding: 6px 12px; border-radius: 6px; margin-bottom: 15px; display: inline-block; text-transform: uppercase; }
+        
         .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 15px; }
         .card { background: white; padding: 12px; border-radius: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
         .media-container { width: 100%; height: 130px; display: flex; align-items: center; justify-content: center; background: #fafafa; border-radius: 6px; overflow: hidden; }
         img, video { max-width: 100%; max-height: 100%; object-fit: contain; }
         .name { font-size: 11px; margin: 10px 0; color: #555; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .copy-btn { width: 100%; padding: 6px; font-size: 11px; border: 1px solid #ddd; background: white; border-radius: 4px; cursor: pointer; }
+        
+        /* コピー通知（トースト）のスタイル */
+        #toast {
+            position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+            background: rgba(0,0,0,0.8); color: white; padding: 10px 20px;
+            border-radius: 20px; font-size: 12px; opacity: 0; transition: opacity 0.3s; z-index: 1000;
+        }
     </style>
 </head>
 <body>
@@ -34,12 +43,16 @@
 </header>
 
 <div id="catalog-container"></div>
+<div id="toast">URLをコピーしました！</div>
 
 <script>
     const USER = 'dpolyglot0310-star';
     const REPO = 'assets';
-    // このフォルダの中にあるものは、フォルダ名に関わらず全てスキャンします
     const BASE_PATH = 'assets'; 
+    
+    // --- 除外設定 ---
+    // ここにフォルダ名を入れると、その中身はスキャンされません
+    const IGNORE_DIRS = ['backup', 'temp', 'old']; 
 
     async function init() {
         try {
@@ -61,11 +74,16 @@
             const response = await fetch(`https://api.github.com/repos/${USER}/${REPO}/git/trees/${repoData.default_branch}?recursive=1`);
             const data = await response.json();
             
-            // assets/ フォルダ配下にある全てのメディアファイルを抽出（フォルダ名は問わない）
-            const filteredFiles = data.tree.filter(file => 
-                file.path.startsWith(BASE_PATH + '/') && 
-                /\.(gif|jpe?g|png|webp|svg|mp4|webm|mov)$/i.test(file.path)
-            );
+            // 除外設定を反映したフィルタリング
+            const filteredFiles = data.tree.filter(file => {
+                const isInBase = file.path.startsWith(BASE_PATH + '/');
+                const isMedia = /\.(gif|jpe?g|png|webp|svg|mp4|webm|mov)$/i.test(file.path);
+                
+                // パスの途中に除外フォルダ名が含まれているかチェック
+                const isIgnored = IGNORE_DIRS.some(dir => file.path.includes(`/${dir}/`));
+                
+                return isInBase && isMedia && !isIgnored;
+            });
             
             renderGallery(filteredFiles);
             window.latestScannedData = filteredFiles;
@@ -117,6 +135,12 @@
         });
     }
 
+    function showToast() {
+        const toast = document.getElementById('toast');
+        toast.style.opacity = '1';
+        setTimeout(() => { toast.style.opacity = '0'; }, 2000);
+    }
+
     function downloadList() {
         const blob = new Blob([JSON.stringify(window.latestScannedData, null, 2)], { type: 'application/json' });
         const url = URL.createObjectURL(blob);
@@ -128,9 +152,11 @@
 
     function copyToClipboard(text) {
         navigator.clipboard.writeText(text).then(() => {
+            showToast();
             const btn = event.target;
-            btn.innerText = 'Copied!';
-            setTimeout(() => btn.innerText = 'URLコピー', 1000);
+            const originalText = btn.innerText;
+            btn.innerText = 'OK!';
+            setTimeout(() => { btn.innerText = originalText; }, 1000);
         });
     }
 
