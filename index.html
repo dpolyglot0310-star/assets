@@ -36,21 +36,26 @@
 <div id="gallery" class="grid"></div>
 
 <script>
+    // --- 設定項目 ---
     const USER = 'dpolyglot0310-star';
     const REPO = 'assets';
-    const PATH = 'assets';
-    let currentFiles = [];
+    const PATH = 'assets'; // 画像が入っているフォルダ名
 
-    // 初期化：既存のlist.jsonを読み込む
+    // 1. 最初はリポジトリ内の list.json を読み込む
     async function init() {
         try {
-            const response = await fetch(`./list.json?t=${Date.now()}`);
-            if (!response.ok) throw new Error();
+            // 【重要】index.htmlと同じ階層、または指定フォルダ内を探す
+            // あなたの構成に合わせて「./assets/list.json」を見に行きます
+            const response = await fetch(`./${PATH}/list.json?t=${Date.now()}`);
+            
+            if (!response.ok) throw new Error('Not Found');
+            
             currentFiles = await response.json();
             renderGallery(currentFiles);
-            document.getElementById('status').innerText = "Loaded from list.json";
+            document.getElementById('status').innerText = "Loaded from list.json (Success!)";
         } catch (e) {
-            document.getElementById('status').innerText = "list.jsonが見つかりません。スキャンしてください。";
+            // ファイルがない、またはパスが違う場合はここに来る
+            document.getElementById('status').innerText = "list.jsonが見つかりません。スキャンして保存し、assets/フォルダ内に配置してください。";
         }
     }
 
