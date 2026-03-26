@@ -2,140 +2,141 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>Asset Catalog (Ultra)</title>
+    <title>Asset Catalog (Ultimate)</title>
     <style>
-        body { font-family: -apple-system, sans-serif; background: #f0f2f5; margin: 0; padding: 20px; color: #333; }
+        :root { --primary: #007aff; --bg: #f0f2f5; --card: white; }
+        body { font-family: -apple-system, sans-serif; background: var(--bg); margin: 0; padding: 20px; color: #333; }
+        
         header { 
-            background: white; padding: 15px 20px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); 
+            background: var(--card); padding: 15px 20px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); 
             position: sticky; top: 10px; z-index: 100; margin-bottom: 20px;
         }
-        .header-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
-        .search-bar { width: 100%; display: flex; gap: 10px; }
-        input[type="text"] { flex: 1; padding: 10px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; outline: none; }
-        input[type="text"]:focus { border-color: #007aff; }
-
-        .btn-group { display: flex; gap: 8px; flex-wrap: wrap; }
-        button { border: none; padding: 8px 14px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 500; transition: 0.2s; }
-        .btn-api { background: #e1e4e8; color: #24292e; }
-        .btn-save { background: #28a745; color: white; display: none; }
-        .btn-csv { background: #007aff; color: white; display: none; }
-
-        .folder-section { margin-bottom: 40px; }
-        .folder-title { font-size: 13px; font-weight: bold; color: #007aff; background: #eef6ff; padding: 6px 12px; border-radius: 6px; margin-bottom: 15px; display: inline-block; text-transform: uppercase; }
+        .header-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+        .controls { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
         
-        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 15px; }
-        .card { background: white; padding: 12px; border-radius: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); transition: 0.2s; }
-        .card[style*="display: none"] { display: none !important; }
-        .media-container { width: 100%; height: 130px; display: flex; align-items: center; justify-content: center; background: #fafafa; border-radius: 6px; overflow: hidden; position: relative; }
+        input[type="text"] { flex: 1; min-width: 200px; padding: 10px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; outline: none; }
+        select, button { border: none; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 500; background: #e1e4e8; }
+        
+        .btn-save { background: #28a745 !important; color: white; }
+        .btn-csv { background: var(--primary) !important; color: white; }
+
+        /* グリッドサイズ可変設定 */
+        .grid { display: grid; gap: 15px; grid-template-columns: repeat(auto-fill, minmax(var(--size, 180px), 1fr)); }
+        
+        .folder-section { margin-bottom: 40px; }
+        .folder-title { font-size: 12px; font-weight: bold; color: var(--primary); background: #eef6ff; padding: 4px 10px; border-radius: 4px; margin-bottom: 15px; display: inline-block; text-transform: uppercase; }
+        
+        .card { background: var(--card); padding: 12px; border-radius: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); position: relative; }
+        .media-container { width: 100%; height: 130px; display: flex; align-items: center; justify-content: center; background: #fafafa; border-radius: 6px; overflow: hidden; position: relative; cursor: zoom-in; }
         img, video { max-width: 100%; max-height: 100%; object-fit: contain; }
         
-        .new-badge { position: absolute; top: 5px; right: 5px; background: #ff3b30; color: white; font-size: 9px; padding: 2px 6px; border-radius: 10px; font-weight: bold; }
+        .new-badge { position: absolute; top: -5px; left: -5px; background: #ff3b30; color: white; font-size: 9px; padding: 2px 6px; border-radius: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.2); }
         
         .name { font-size: 11px; margin: 10px 0; color: #555; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .copy-btn { width: 100%; padding: 6px; font-size: 11px; border: 1px solid #ddd; background: white; border-radius: 4px; cursor: pointer; }
-        #toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.8); color: white; padding: 10px 20px; border-radius: 20px; font-size: 12px; opacity: 0; transition: opacity 0.3s; z-index: 1000; pointer-events: none; }
+        .copy-btn { width: 100%; padding: 6px; font-size: 11px; border: 1px solid #ddd; background: var(--card); border-radius: 4px; cursor: pointer; }
+        
+        #toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.8); color: white; padding: 10px 20px; border-radius: 20px; font-size: 12px; opacity: 0; transition: opacity 0.3s; pointer-events: none; z-index: 2000; }
     </style>
 </head>
 <body>
 
 <header>
     <div class="header-top">
-        <div>
-            <h1 style="margin:0; font-size:1.1rem;">Asset Catalog</h1>
-            <div id="status" style="font-size:11px; color:#888;">Checking...</div>
-        </div>
+        <h1 style="margin:0; font-size:1rem;">Asset Catalog</h1>
+        <div id="status" style="font-size:11px; color:#888;">Checking...</div>
         <div class="btn-group">
-            <button class="btn-api" onclick="fetchDeepScan()">APIスキャン実行</button>
-            <button id="save-btn" class="btn-save" onclick="downloadJSON()">JSON保存</button>
-            <button id="csv-btn" class="btn-csv" onclick="downloadCSV()">CSV保存</button>
+            <button onclick="fetchDeepScan()">APIスキャン</button>
+            <button id="save-btn" class="btn-save" style="display:none" onclick="downloadJSON()">JSON保存</button>
+            <button id="csv-btn" class="btn-csv" style="display:none" onclick="downloadCSV()">CSV保存</button>
         </div>
     </div>
-    <div class="search-bar">
+    <div class="controls">
         <input type="text" id="searchInput" placeholder="ファイル名で検索..." oninput="filterAssets()">
+        <select onchange="document.body.style.setProperty('--size', this.value + 'px')">
+            <option value="180">表示サイズ: 中</option>
+            <option value="120">表示サイズ: 小</option>
+            <option value="260">表示サイズ: 大</option>
+        </select>
+        <button onclick="filterType('all')">全て</button>
+        <button onclick="filterType('video')">動画のみ</button>
     </div>
 </header>
 
 <div id="catalog-container"></div>
-<div id="toast">URLをコピーしました！</div>
+<div id="toast">コピーしました！</div>
 
 <script>
     const USER = 'dpolyglot0310-star';
     const REPO = 'assets';
-    const BASE_PATH = 'assets'; 
-    const IGNORE_DIRS = ['backup', 'temp', 'old']; 
+    const BASE_PATH = 'assets';
     let allAssets = [];
 
     async function init() {
         try {
-            const response = await fetch(`./${BASE_PATH}/list.json?nocache=${Date.now()}`);
+            const response = await fetch(`./${BASE_PATH}/list.json?t=${Date.now()}`);
             if (!response.ok) throw new Error();
             allAssets = await response.json();
             renderGallery(allAssets);
-            document.getElementById('status').innerText = `Loaded: ${allAssets.length} items`;
-            document.getElementById('csv-btn').style.display = 'block';
+            document.getElementById('status').innerText = `${allAssets.length} items loaded.`;
+            document.getElementById('csv-btn').style.display = 'inline-block';
         } catch (e) {
-            document.getElementById('status').innerText = "list.json未検出。スキャンしてください。";
+            document.getElementById('status').innerText = "list.json not found.";
         }
     }
 
     async function fetchDeepScan() {
-        document.getElementById('status').innerText = "Scanning GitHub...";
+        document.getElementById('status').innerText = "Scanning...";
         try {
             const repoInfo = await fetch(`https://api.github.com/repos/${USER}/${REPO}`);
             const repoData = await repoInfo.json();
             const response = await fetch(`https://api.github.com/repos/${USER}/${REPO}/git/trees/${repoData.default_branch}?recursive=1`);
             const data = await response.json();
             
-            allAssets = data.tree.filter(file => {
-                const isInBase = file.path.startsWith(BASE_PATH + '/');
-                const isMedia = /\.(gif|jpe?g|png|webp|svg|mp4|webm|mov)$/i.test(file.path);
-                const isIgnored = IGNORE_DIRS.some(dir => file.path.includes(`/${dir}/`));
-                return isInBase && isMedia && !isIgnored;
-            });
+            // スキャン時に日付スタンプを付与（Newバッジ用）
+            const now = new Date().toISOString();
+            allAssets = data.tree.filter(file => 
+                file.path.startsWith(BASE_PATH + '/') && 
+                /\.(gif|jpe?g|png|webp|svg|mp4|webm|mov)$/i.test(file.path)
+            ).map(file => ({ ...file, scannedAt: now }));
             
             renderGallery(allAssets);
-            document.getElementById('status').innerText = `Scan Complete! (${allAssets.length} items)`;
-            document.getElementById('save-btn').style.display = 'block';
-            document.getElementById('csv-btn').style.display = 'block';
-        } catch (e) {
-            document.getElementById('status').innerText = "API Error.";
-        }
+            document.getElementById('save-btn').style.display = 'inline-block';
+            document.getElementById('csv-btn').style.display = 'inline-block';
+        } catch (e) { document.getElementById('status').innerText = "Error."; }
     }
 
     function renderGallery(files) {
         const container = document.getElementById('catalog-container');
         container.innerHTML = '';
         const groups = {};
+        
         files.forEach(file => {
-            const pathParts = file.path.split('/');
-            pathParts.pop(); 
-            const folderName = pathParts.join(' / ') || 'ROOT';
-            if (!groups[folderName]) groups[folderName] = [];
-            groups[folderName].push(file);
+            const folder = file.path.split('/').slice(0, -1).join(' / ') || 'ROOT';
+            if (!groups[folder]) groups[folder] = [];
+            groups[folder].push(file);
         });
 
-        Object.keys(groups).sort().forEach(folderName => {
+        Object.keys(groups).sort().forEach(folder => {
             const section = document.createElement('div');
             section.className = 'folder-section';
-            section.innerHTML = `<div class="folder-title">${folderName}</div><div class="grid"></div>`;
+            section.innerHTML = `<div class="folder-title">${folder}</div><div class="grid"></div>`;
             const grid = section.querySelector('.grid');
 
-            groups[folderName].forEach(file => {
-                const rawUrl = `https://raw.githubusercontent.com/${USER}/${REPO}/main/${file.path}`;
+            groups[folder].forEach(file => {
+                const url = `https://raw.githubusercontent.com/${USER}/${REPO}/main/${file.path}`;
                 const isVideo = /\.(mp4|webm|mov)$/i.test(file.path);
-                const fileName = file.path.split('/').pop();
-
+                const name = file.path.split('/').pop();
+                
                 const card = document.createElement('div');
                 card.className = 'card';
-                card.dataset.name = fileName.toLowerCase(); // 検索用
+                card.dataset.name = name.toLowerCase();
+                card.dataset.type = isVideo ? 'video' : 'image';
                 card.innerHTML = `
-                    <div class="media-container">
-                        ${isVideo 
-                            ? `<video src="${rawUrl}" muted loop onmouseover="this.play()" onmouseout="this.pause()"></video>` 
-                            : `<img src="${rawUrl}" loading="lazy">`}
+                    <div class="media-container" onclick="window.open('${url}')">
+                        ${isVideo ? `<video src="${url}" muted loop onmouseover="this.play()" onmouseout="this.pause()"></video>` : `<img src="${url}" loading="lazy">`}
                     </div>
-                    <div class="name" title="${fileName}">${fileName}</div>
-                    <button class="copy-btn" onclick="copyToClipboard('${rawUrl}')">URLコピー</button>
+                    <div class="name">${name}</div>
+                    <button class="copy-btn" onclick="copyTo('${url}')">URLコピー</button>
                 `;
                 grid.appendChild(card);
             });
@@ -144,59 +145,41 @@
     }
 
     function filterAssets() {
-        const query = document.getElementById('searchInput').value.toLowerCase();
-        const cards = document.querySelectorAll('.card');
-        let visibleCount = 0;
-
-        cards.forEach(card => {
-            const isMatch = card.dataset.name.includes(query);
-            card.style.display = isMatch ? 'block' : 'none';
-            if (isMatch) visibleCount++;
+        const q = document.getElementById('searchInput').value.toLowerCase();
+        document.querySelectorAll('.card').forEach(c => {
+            c.style.display = c.dataset.name.includes(q) ? 'block' : 'none';
         });
-
-        // セクション（フォルダの見出し）自体を隠す処理
-        document.querySelectorAll('.folder-section').forEach(section => {
-            const hasVisibleCard = Array.from(section.querySelectorAll('.card')).some(c => c.style.display !== 'none');
-            section.style.display = hasVisibleCard ? 'block' : 'none';
-        });
-        
-        document.getElementById('status').innerText = `Matching: ${visibleCount} items`;
+        updateSectionVisibility();
     }
 
-    function downloadJSON() {
-        const blob = new Blob([JSON.stringify(allAssets, null, 2)], { type: 'application/json' });
-        saveFile(blob, 'list.json');
+    function filterType(type) {
+        document.querySelectorAll('.card').forEach(c => {
+            c.style.display = (type === 'all' || c.dataset.type === type) ? 'block' : 'none';
+        });
+        updateSectionVisibility();
     }
 
+    function updateSectionVisibility() {
+        document.querySelectorAll('.folder-section').forEach(s => {
+            const hasVisible = Array.from(s.querySelectorAll('.card')).some(c => c.style.display !== 'none');
+            s.style.display = hasVisible ? 'block' : 'none';
+        });
+    }
+
+    function downloadJSON() { save(new Blob([JSON.stringify(allAssets, null, 2)]), 'list.json'); }
+    
     function downloadCSV() {
-        let csvContent = "Folder,FileName,URL\n";
-        allAssets.forEach(file => {
-            const pathParts = file.path.split('/');
-            const fileName = pathParts.pop();
-            const folder = pathParts.join('/');
-            const url = `https://raw.githubusercontent.com/${USER}/${REPO}/main/${file.path}`;
-            csvContent += `"${folder}","${fileName}","${url}"\n`;
-        });
-        const blob = new Blob(["\uFEFF" + csvContent], { type: 'text/csv;charset=utf-8;' });
-        saveFile(blob, 'asset_list.csv');
+        let csv = "Folder,Name,URL\n" + allAssets.map(f => `"${f.path.split('/').slice(0,-1).join('/')}","${f.path.split('/').pop()}","https://raw.githubusercontent.com/${USER}/${REPO}/main/${f.path}"`).join("\n");
+        save(new Blob(["\uFEFF" + csv], {type: 'text/csv'}), 'assets.csv');
     }
 
-    function saveFile(blob, filename) {
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = filename;
-        a.click();
-    }
+    function save(b, n) { const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = n; a.click(); }
 
-    function copyToClipboard(text) {
-        navigator.clipboard.writeText(text).then(() => {
+    function copyTo(t) {
+        navigator.clipboard.writeText(t).then(() => {
             const toast = document.getElementById('toast');
             toast.style.opacity = '1';
-            setTimeout(() => { toast.style.opacity = '0'; }, 1500);
-            const btn = event.target;
-            btn.innerText = 'OK!';
-            setTimeout(() => { btn.innerText = 'URLコピー'; }, 1000);
+            setTimeout(() => toast.style.opacity = '0', 1500);
         });
     }
 
