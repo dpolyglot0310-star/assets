@@ -44,18 +44,19 @@
     // 1. 最初はリポジトリ内の list.json を読み込む
     async function init() {
         try {
-            // 【重要】index.htmlと同じ階層、または指定フォルダ内を探す
-            // あなたの構成に合わせて「./assets/list.json」を見に行きます
-            const response = await fetch(`./${PATH}/list.json?t=${Date.now()}`);
+            // ./assets/list.json を直接指定（t=...はキャッシュ対策）
+            const response = await fetch('assets/list.json?t=' + Date.now());
             
-            if (!response.ok) throw new Error('Not Found');
+            if (!response.ok) {
+                console.error("Status:", response.status); // 404ならファイルがない
+                throw new Error('Not Found');
+            }
             
             currentFiles = await response.json();
             renderGallery(currentFiles);
-            document.getElementById('status').innerText = "Loaded from list.json (Success!)";
+            document.getElementById('status').innerText = "Loaded: " + currentFiles.length + " files";
         } catch (e) {
-            // ファイルがない、またはパスが違う場合はここに来る
-            document.getElementById('status').innerText = "list.jsonが見つかりません。スキャンして保存し、assets/フォルダ内に配置してください。";
+            document.getElementById('status').innerText = "list.jsonが見つかりません。assets/フォルダ内にあるか確認してください。";
         }
     }
 
