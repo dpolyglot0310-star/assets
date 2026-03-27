@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>Asset & Doc Manager - Stable Build</title>
+    <title>Unified Asset & Prompt Manager</title>
     <style>
         :root { --primary: #007aff; --bg: #f0f2f5; --card: white; --size: 180px; }
         body { font-family: -apple-system, sans-serif; background: var(--bg); margin: 0; padding: 20px; color: #333; line-height: 1.5; }
@@ -59,7 +59,7 @@
         </div>
     </div>
     <div class="controls">
-        <input type="text" id="searchInput" placeholder="ファイル名やプロンプトで検索..." oninput="filterCards()">
+        <input type="text" id="searchInput" placeholder="検索..." oninput="filterCards()">
         <select id="viewSelect" onchange="refreshView()">
             <option value="grid">グリッド表示</option>
             <option value="list">リスト表示</option>
@@ -85,13 +85,11 @@
     let assetData = [];
     let linkData = [];
 
-    // --- 初期化 ---
     async function init() {
         await loadAssetList();
         refreshView();
     }
 
-    // --- モード切り替え & 描画更新 ---
     async function switchMode(mode) {
         currentMode = mode;
         document.getElementById('mode-assets').className = (mode === 'assets' ? 'active' : '');
@@ -101,14 +99,10 @@
     }
 
     function refreshView() {
-        if (currentMode === 'assets') {
-            renderAssets(assetData);
-        } else {
-            loadLinkData().then(() => renderLinks(linkData));
-        }
+        if (currentMode === 'assets') renderAssets(assetData);
+        else loadLinkData().then(() => renderLinks(linkData));
     }
 
-    // --- Assets (画像・MD) 関連 ---
     async function loadAssetList() {
         try {
             const res = await fetch(`./${BASE_PATH}/list.json?t=${Date.now()}`);
@@ -120,10 +114,10 @@
     async function fetchDeepScan() {
         document.getElementById('status').innerText = "Scanning GitHub...";
         try {
-            const repo = await (await fetch(`https://api.github.com/repos/${USER}/${REPO}`)).json();
-            const tree = await (await fetch(`https://api.github.com/repos/${USER}/${REPO}/git/trees/${repo.default_branch}?recursive=1`)).json();
+            const repoData = await (await fetch(`https://api.github.com/repos/${USER}/${REPO}`)).json();
+            const treeData = await (await fetch(`https://api.github.com/repos/${USER}/${REPO}/git/trees/${repoData.default_branch}?recursive=1`)).json();
             
-            assetData = tree.tree.filter(f => {
+            assetData = treeData.tree.filter(f => {
                 const inBase = f.path.startsWith(BASE_PATH + '/');
                 const isMatch = /\.(gif|jpe?g|png|webp|svg|mp4|webm|mov|md)$/i.test(f.path);
                 const isIgnored = IGNORE_DIRS.some(d => f.path.includes(`/${d}/`));
@@ -140,12 +134,14 @@
         container.innerHTML = '';
         const groups = {};
         const mdMap = {};
+        const pairedMdPaths = new Set(); // ペアになったMDを記録
 
-        // MDファイルの存在チェック
+        // 1. MDファイルのパスをマッピング
         items.forEach(f => { if (f.path.endsWith('.md')) mdMap[f.path.replace(/\.md$/i, '')] = f.path; });
 
+        // 2. 画像・動画の処理
         items.forEach(f => {
-            if (f.path.endsWith('.md')) return;
+            if (f.path.endsWith('.md')) return; // MDは後で単体処理
             const parts = f.path.split('/');
             const name = parts.pop();
             const folder = parts.join(' / ');
@@ -153,10 +149,27 @@
             const key = isHidden ? `🙈 HIDDEN: ${folder}` : folder;
             const relatedMd = mdMap[f.path.substring(0, f.path.lastIndexOf('.'))];
 
+            if (relatedMd) pairedMdPaths.add(relatedMd); // ペアとして使用済み
+
             if (!groups[key]) groups[key] = { items: [], isHidden };
-            groups[key].items.push({...f, name, relatedMd});
+            groups[key].items.push({...f, name, relatedMd, type: 'media'});
         });
 
+        // 3. ペアにならなかった「単体MD」の処理
+        items.forEach(f => {
+            if (f.path.endsWith('.md') && !pairedMdPaths.has(f.path)) {
+                const parts = f.path.split('/');
+                const name = parts.pop();
+                const folder = parts.join(' / ');
+                const isHidden = parts.some(p => p.startsWith('.'));
+                const key = isHidden ? `🙈 HIDDEN: ${folder}` : folder;
+
+                if (!groups[key]) groups[key] = { items: [], isHidden };
+                groups[key].items.push({...f, name, relatedMd: f.path, type: 'text'});
+            }
+        });
+
+        // 描画
         Object.keys(groups).sort((a,b) => groups[a].isHidden - groups[b].isHidden).forEach(key => {
             const section = document.createElement('div');
             section.className = `folder-section ${groups[key].isHidden ? 'hidden-folder' : ''}`;
@@ -166,24 +179,27 @@
             groups[key].items.forEach(f => {
                 const url = `https://raw.githubusercontent.com/${USER}/${REPO}/main/${f.path}`;
                 const isVideo = /\.(mp4|webm|mov)$/i.test(f.path);
-                const isHeavy = f.size > 1024 * 1024;
+                const isHeavy = (f.size || 0) > 1024 * 1024;
                 const shouldHide = isHeavy || groups[key].isHidden;
 
                 const card = document.createElement('div');
                 card.className = 'card';
                 card.dataset.name = f.name.toLowerCase();
+                
                 card.innerHTML = `
                     <div class="media-container" id="media-${f.sha}" onclick="window.open('${url}')">
-                        ${shouldHide ? `<div class="placeholder"><span>${isHeavy ? 'Heavy' : 'Hidden'}</span><br><button onclick="event.stopPropagation(); loadMedia('${f.sha}','${url}',${isVideo})">表示</button></div>` : renderMedia(url, isVideo)}
+                        ${f.type === 'text' ? `<div style="font-size:2.5rem;">📄</div>` : 
+                          (shouldHide ? `<div class="placeholder"><span>${isHeavy ? 'Heavy' : 'Hidden'}</span><br><button onclick="event.stopPropagation(); loadMedia('${f.sha}','${url}',${isVideo})">表示</button></div>` : renderMedia(url, isVideo))
+                        }
                     </div>
                     <div class="info">
                         <div class="name">${f.name}</div>
-                        <div class="meta">${(f.size/1024).toFixed(1)} KB</div>
-                        ${f.relatedMd ? `<div id="md-${f.sha}" class="md-preview">Loading text...</div>` : ''}
+                        <div class="meta">${f.size ? (f.size/1024).toFixed(1) + ' KB' : 'Text Doc'}</div>
+                        ${f.relatedMd ? `<div id="md-${f.sha}" class="md-preview">Loading content...</div>` : ''}
                     </div>
                     <div style="display:flex; flex-direction:column; gap:2px;">
-                        <button class="action-btn" onclick="copyTo('${url}')">URLコピー</button>
-                        ${f.relatedMd ? `<button class="action-btn" id="btn-md-${f.sha}" onclick="copyMdText('${f.sha}')" style="display:none">MDコピー</button>` : ''}
+                        ${f.type === 'media' ? `<button class="action-btn" onclick="copyTo('${url}')">URLコピー</button>` : ''}
+                        ${f.relatedMd ? `<button class="action-btn" id="btn-md-${f.sha}" onclick="copyMdText('${f.sha}')" style="display:none">内容をコピー</button>` : ''}
                     </div>
                 `;
                 grid.appendChild(card);
@@ -208,11 +224,11 @@
     }
 
     function copyMdText(sha) {
-        const text = document.getElementById(`md-${sha}`).dataset.full;
-        if (text) copyTo(text);
+        const target = document.getElementById(`md-${sha}`);
+        if (target && target.dataset.full) copyTo(target.dataset.full);
     }
 
-    // --- Links (CSV) 関連 ---
+    // --- CSV & Utility 関連（前回の修正を維持） ---
     async function loadLinkData() {
         try {
             const res = await fetch(`./${BASE_PATH}/links.csv?t=${Date.now()}`);
@@ -230,13 +246,11 @@
         container.innerHTML = '';
         const groups = {};
         links.forEach(l => { if (!groups[l.cat]) groups[l.cat] = []; groups[l.cat].push(l); });
-        
         Object.keys(groups).sort().forEach(cat => {
             const section = document.createElement('div');
             section.className = 'folder-section';
             section.innerHTML = `<div class="folder-title">${cat}</div><div class="grid ${document.getElementById('viewSelect').value === 'list' ? 'list-view' : ''}"></div>`;
             const grid = section.querySelector('.grid');
-            
             groups[cat].forEach(l => {
                 const card = document.createElement('div');
                 card.className = 'card';
@@ -260,7 +274,6 @@
         });
     }
 
-    // --- 共通ユーティリティ ---
     function renderMedia(url, isVideo) {
         return isVideo ? `<video src="${url}" muted loop onmouseover="this.play()" onmouseout="this.pause()"></video>` : `<img src="${url}" loading="lazy">`;
     }
@@ -270,9 +283,7 @@
         if (target) target.innerHTML = renderMedia(url, isVideo); 
     }
 
-    function loadAllMedia() { 
-        document.querySelectorAll('.placeholder button').forEach(b => b.click()); 
-    }
+    function loadAllMedia() { document.querySelectorAll('.placeholder button').forEach(b => b.click()); }
 
     function filterCards() {
         const q = document.getElementById('searchInput').value.toLowerCase();
@@ -289,17 +300,13 @@
             const t = document.getElementById('toast');
             t.style.opacity = '1';
             setTimeout(() => t.style.opacity = '0', 1500);
-        }).catch(err => { console.error("Copy failed", err); });
+        });
     }
 
     function downloadJSON() {
         if (assetData.length === 0) return alert("データがありません");
         const blob = new Blob([JSON.stringify(assetData, null, 2)], {type: 'application/json'});
-        const a = document.createElement('a');
-        a.href = URL.createObjectURL(blob);
-        a.download = 'list.json';
-        a.click();
-        URL.revokeObjectURL(a.href);
+        const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'list.json'; a.click();
     }
 
     init();
