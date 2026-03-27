@@ -92,7 +92,46 @@
             renderLinks(linkData);
         }
     }
+// --- Asset Scan Function ---
+    async function fetchDeepScan() {
+        const statusEl = document.getElementById('status');
+        statusEl.innerText = "Scanning GitHub...";
+        try {
+            // リポジトリ情報を取得してデフォルトブランチを確認
+            const repoRes = await fetch(`https://api.github.com/repos/${USER}/${REPO}`);
+            const repoData = await repoRes.json();
+            
+            // 全ファイルを再帰的にスキャン
+            const treeRes = await fetch(`https://api.github.com/repos/${USER}/${REPO}/git/trees/${repoData.default_branch}?recursive=1`);
+            const data = await treeRes.json();
+            
+            // フィルタリング（除外フォルダ IGNORE_DIRS の適用）
+            const IGNORE_DIRS = ['backup', 'old', 'temp']; 
+            assetData = data.tree.filter(f => {
+                const isInBase = f.path.startsWith(BASE_PATH + '/');
+                const isMedia = /\.(gif|jpe?g|png|webp|svg|mp4|webm|mov)$/i.test(f.path);
+                const isIgnored = IGNORE_DIRS.some(dir => f.path.includes(`/${dir}/`));
+                return isInBase && isMedia && !isIgnored;
+            });
 
+            renderGallery(assetData);
+            document.getElementById('save-btn').style.display = 'inline-block';
+            statusEl.innerText = `Scan complete: ${assetData.length} items`;
+        } catch (e) {
+            console.error(e);
+            statusEl.innerText = "API Error. Check console.";
+        }
+    }
+
+    // JSON保存関数も念のため再確認（なければ追加）
+    function downloadJSON() { 
+        const blob = new Blob([JSON.stringify(assetData, null, 2)], {type: 'application/json'});
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'list.json';
+        a.click(); 
+    }
+    
     // --- Asset Mode ---
     async function loadAssets() {
         try {
