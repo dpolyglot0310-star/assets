@@ -96,7 +96,23 @@
     "url": "https://api.github.com/repos/dpolyglot0310-star/assets/git/blobs/64568880394547c8a386ba90ea8e695fcd11c0cc"
   },
   {
-    "path": "assets/01_animations/highfive/gif/@2x/.other/g_04@2x.gif",
+    "path": "assets/01_animations/001_tuuuun/.asset/01.png",
+    "mode": "100644",
+    "type": "blob",
+    "sha": "b9c1fce5c85f484c94fc8971b676a677a32e329a",
+    "size": 926497,
+    "url": "https://api.github.com/repos/dpolyglot0310-star/assets/git/blobs/b9c1fce5c85f484c94fc8971b676a677a32e329a"
+  },
+  {
+    "path": "assets/01_animations/001_tuuuun/.asset/prompt.md",
+    "mode": "100644",
+    "type": "blob",
+    "sha": "0349448df70c37d30b3bdada5572468f13f90b5b",
+    "size": 565,
+    "url": "https://api.github.com/repos/dpolyglot0310-star/assets/git/blobs/0349448df70c37d30b3bdada5572468f13f90b5b"
+  },
+  {
+    "path": "assets/01_animations/998_highfive/gif/@2x/.other/g_04@2x.gif",
     "mode": "100644",
     "type": "blob",
     "sha": "58d46303af8ac751c7579b1b212984ecb3d7818b",
@@ -104,7 +120,7 @@
     "url": "https://api.github.com/repos/dpolyglot0310-star/assets/git/blobs/58d46303af8ac751c7579b1b212984ecb3d7818b"
   },
   {
-    "path": "assets/01_animations/highfive/gif/@2x/.other/g_04_50@2x.gif",
+    "path": "assets/01_animations/998_highfive/gif/@2x/.other/g_04_50@2x.gif",
     "mode": "100644",
     "type": "blob",
     "sha": "bd0f2ccda2ac7bc6224d0b56761d1a138e6c6f23",
@@ -112,7 +128,7 @@
     "url": "https://api.github.com/repos/dpolyglot0310-star/assets/git/blobs/bd0f2ccda2ac7bc6224d0b56761d1a138e6c6f23"
   },
   {
-    "path": "assets/01_animations/highfive/gif/@2x/g_04_100@2x.gif",
+    "path": "assets/01_animations/998_highfive/gif/@2x/g_04_100@2x.gif",
     "mode": "100644",
     "type": "blob",
     "sha": "9f63ef053121c93b858048638bd12b7d55b5c0c4",
@@ -120,7 +136,7 @@
     "url": "https://api.github.com/repos/dpolyglot0310-star/assets/git/blobs/9f63ef053121c93b858048638bd12b7d55b5c0c4"
   },
   {
-    "path": "assets/01_animations/highfive2/gifgif/@2x/gg_03_72_100@2x.gif",
+    "path": "assets/01_animations/999_highfive2/gifgif/@2x/gg_03_72_100@2x.gif",
     "mode": "100644",
     "type": "blob",
     "sha": "ef4b924e973f2a356ad05287b7212d58fc299ffd",
@@ -128,7 +144,7 @@
     "url": "https://api.github.com/repos/dpolyglot0310-star/assets/git/blobs/ef4b924e973f2a356ad05287b7212d58fc299ffd"
   },
   {
-    "path": "assets/01_animations/highfive2/gifgif/@2x/gg_03_72_50@2x.gif",
+    "path": "assets/01_animations/999_highfive2/gifgif/@2x/gg_03_72_50@2x.gif",
     "mode": "100644",
     "type": "blob",
     "sha": "83287c087402b59b828e3a27b575d4b31b7a35b9",
