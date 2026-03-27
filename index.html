@@ -2,63 +2,85 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>Multi Catalog (Assets & Links)</title>
+    <title>Ultimate Asset & Docs Catalog</title>
     <style>
-        /* 既存のスタイルを継承しつつ、スイッチ用に追加 */
         :root { --primary: #007aff; --bg: #f0f2f5; --card: white; --size: 180px; }
-        body { font-family: -apple-system, sans-serif; background: var(--bg); margin: 0; padding: 20px; color: #333; }
+        body { font-family: -apple-system, sans-serif; background: var(--bg); margin: 0; padding: 20px; color: #333; line-height: 1.5; }
+        
+        /* Header & Navigation */
         header { background: var(--card); padding: 15px 20px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); position: sticky; top: 10px; z-index: 100; margin-bottom: 20px; }
-        .header-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
-        
-        /* モード切り替えスイッチ */
-        .mode-switch { display: flex; background: #e1e4e8; padding: 3px; border-radius: 8px; margin-right: 15px; }
-        .mode-switch button { background: transparent; border: none; padding: 6px 15px; border-radius: 6px; font-weight: bold; cursor: pointer; }
+        .header-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 10px; }
+        .mode-switch { display: flex; background: #e1e4e8; padding: 3px; border-radius: 8px; }
+        .mode-switch button { background: transparent; border: none; padding: 6px 12px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 12px; }
         .mode-switch button.active { background: var(--card); box-shadow: 0 2px 4px rgba(0,0,0,0.1); color: var(--primary); }
-
+        
+        .status-bar { font-size: 10px; color: #888; display: flex; align-items: center; gap: 10px; }
         .controls { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-        input[type="text"] { flex: 1; min-width: 150px; padding: 8px; border: 1px solid #ddd; border-radius: 6px; font-size: 13px; }
-        button, select { border: none; padding: 6px 10px; border-radius: 6px; cursor: pointer; font-size: 12px; background: #e1e4e8; }
+        
+        /* UI Elements */
+        input[type="text"] { flex: 1; min-width: 150px; padding: 8px; border: 1px solid #ddd; border-radius: 6px; font-size: 13px; outline: none; }
+        button, select { border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; background: #e1e4e8; transition: 0.2s; }
+        .btn-api { background: var(--primary) !important; color: white; }
         .btn-save { background: #28a745 !important; color: white; }
+        .btn-eco { background: #ff9500 !important; color: white; }
 
-        .grid { display: grid; gap: 15px; grid-template-columns: repeat(auto-fill, minmax(var(--size), 1fr)); }
+        /* Grid & Sections */
+        #catalog-container { margin-top: 10px; }
         .folder-section { margin-bottom: 30px; border-top: 1px solid #ddd; padding-top: 20px; }
-        .folder-title { font-size: 11px; font-weight: bold; color: var(--primary); background: #eef6ff; padding: 3px 8px; border-radius: 4px; margin-bottom: 10px; display: inline-block; text-transform: uppercase; }
+        .folder-section.hidden-folder { opacity: 0.6; background: #e9e9e9; padding: 15px; border-radius: 10px; border: 1px dashed #ccc; }
+        .folder-title { font-size: 11px; font-weight: bold; color: var(--primary); background: #eef6ff; padding: 3px 8px; border-radius: 4px; margin-bottom: 12px; display: inline-block; text-transform: uppercase; }
         
-        .card { background: var(--card); padding: 10px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); display: flex; flex-direction: column; height: 100%; }
-        .media-container { width: 100%; height: 120px; display: flex; align-items: center; justify-content: center; background: #fafafa; border-radius: 5px; overflow: hidden; cursor: pointer; }
+        .grid { display: grid; gap: 15px; grid-template-columns: repeat(auto-fill, minmax(var(--size), 1fr)); }
+        .grid.list-view { grid-template-columns: 1fr; gap: 5px; }
+
+        /* Cards */
+        .card { background: var(--card); padding: 12px; border-radius: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); display: flex; flex-direction: column; transition: transform 0.2s; }
+        .list-view .card { flex-direction: row; align-items: center; padding: 6px 15px; }
+        .media-container { width: 100%; height: 120px; display: flex; align-items: center; justify-content: center; background: #fafafa; border-radius: 6px; overflow: hidden; position: relative; cursor: pointer; }
+        .list-view .media-container { width: 40px; height: 40px; margin-right: 15px; flex-shrink: 0; }
         img, video { max-width: 100%; max-height: 100%; object-fit: contain; }
+
+        .placeholder { font-size: 10px; color: #999; text-align: center; }
+        .info { flex-grow: 1; min-width: 0; margin: 8px 0; }
+        .list-view .info { margin: 0; display: flex; align-items: center; gap: 15px; }
+        .name { font-size: 12px; font-weight: bold; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .meta { font-size: 10px; color: #999; }
         
-        .info { flex-grow: 1; margin: 8px 0; }
-        .name { font-size: 12px; font-weight: bold; line-height: 1.4; color: #333; }
-        .meta { font-size: 10px; color: #999; margin-top: 4px; }
-        
-        .action-btn { width: 100%; padding: 6px; font-size: 11px; border: 1px solid #ddd; background: var(--card); border-radius: 4px; cursor: pointer; margin-top: 5px; }
-        #toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.8); color: white; padding: 8px 16px; border-radius: 20px; font-size: 11px; opacity: 0; transition: opacity 0.3s; z-index: 2000; }
+        .prompt-preview { font-size: 10px; background: #f8f9fa; padding: 6px; border-radius: 4px; border-left: 3px solid #ccc; margin-top: 5px; color: #666; max-height: 50px; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+
+        .action-btn { width: 100%; padding: 6px; font-size: 11px; border: 1px solid #ddd; background: var(--card); border-radius: 4px; cursor: pointer; margin-top: 4px; }
+        .list-view .action-btn { width: auto; margin: 0 0 0 auto; padding: 4px 12px; }
+
+        #toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.8); color: white; padding: 8px 18px; border-radius: 20px; font-size: 11px; opacity: 0; transition: opacity 0.3s; pointer-events: none; z-index: 2000; }
     </style>
 </head>
 <body>
 
 <header>
     <div class="header-top">
-        <div style="display: flex; align-items: center;">
-            <div class="mode-switch">
-                <button id="btn-assets" class="active" onclick="switchMode('assets')">Assets</button>
-                <button id="btn-links" onclick="switchMode('links')">Links</button>
-            </div>
-            <h1 style="margin:0; font-size:1rem;">Catalog</h1>
+        <div class="mode-switch">
+            <button id="mode-assets" class="active" onclick="switchMode('assets')">Assets</button>
+            <button id="mode-links" onclick="switchMode('links')">Links & Docs</button>
         </div>
-        <div id="status" style="font-size:10px; color:#888;">Standby</div>
-        <div id="asset-tools" class="btn-group">
-            <button onclick="fetchDeepScan()">APIスキャン</button>
+        <div class="status-bar">
+            <span id="status">Standby</span>
+        </div>
+        <div id="asset-tools">
+            <button class="btn-api" onclick="fetchDeepScan()">APIスキャン</button>
+            <button class="btn-eco" onclick="loadAllMedia()">全表示</button>
             <button id="save-btn" class="btn-save" style="display:none" onclick="downloadJSON()">JSON保存</button>
         </div>
     </div>
     <div class="controls">
-        <input type="text" id="searchInput" placeholder="検索..." oninput="filterCards()">
+        <input type="text" id="searchInput" placeholder="ファイル名やプロンプトで検索..." oninput="filterCards()">
+        <select id="viewSelect" onchange="changeView(this.value)">
+            <option value="grid">グリッド表示</option>
+            <option value="list">リスト表示</option>
+        </select>
         <select onchange="document.body.style.setProperty('--size', this.value + 'px')">
-            <option value="180">中サイズ</option>
-            <option value="120">小サイズ</option>
-            <option value="260">大サイズ</option>
+            <option value="180">サイズ：中</option>
+            <option value="120">サイズ：小</option>
+            <option value="260">サイズ：大</option>
         </select>
     </div>
 </header>
@@ -70,105 +92,95 @@
     const USER = 'dpolyglot0310-star';
     const REPO = 'assets';
     const BASE_PATH = 'assets';
+    const IGNORE_DIRS = ['backup', 'old', 'temp']; // 完全に隠すフォルダ名
+
     let currentMode = 'assets';
     let assetData = [];
     let linkData = [];
 
     async function init() {
-        // 初期状態ではAssetsを読み込み
-        await loadAssets();
+        await switchMode('assets');
     }
 
     async function switchMode(mode) {
         currentMode = mode;
-        document.getElementById('btn-assets').classList.toggle('active', mode === 'assets');
-        document.getElementById('btn-links').classList.toggle('active', mode === 'links');
-        document.getElementById('asset-tools').style.visibility = (mode === 'assets') ? 'visible' : 'hidden';
+        document.getElementById('mode-assets').className = (mode === 'assets' ? 'active' : '');
+        document.getElementById('mode-links').className = (mode === 'links' ? 'active' : '');
+        document.getElementById('asset-tools').style.display = (mode === 'assets' ? 'flex' : 'none');
         
         if (mode === 'assets') {
-            renderGallery(assetData);
+            if (assetData.length === 0) await loadAssetList();
+            renderAssets(assetData);
         } else {
-            if (linkData.length === 0) await loadLinks();
+            if (linkData.length === 0) await loadLinkData();
             renderLinks(linkData);
         }
     }
-// --- Asset Scan Function ---
-    async function fetchDeepScan() {
-        const statusEl = document.getElementById('status');
-        statusEl.innerText = "Scanning GitHub...";
-        try {
-            // リポジトリ情報を取得してデフォルトブランチを確認
-            const repoRes = await fetch(`https://api.github.com/repos/${USER}/${REPO}`);
-            const repoData = await repoRes.json();
-            
-            // 全ファイルを再帰的にスキャン
-            const treeRes = await fetch(`https://api.github.com/repos/${USER}/${REPO}/git/trees/${repoData.default_branch}?recursive=1`);
-            const data = await treeRes.json();
-            
-            // フィルタリング（除外フォルダ IGNORE_DIRS の適用）
-            const IGNORE_DIRS = ['backup', 'old', 'temp']; 
-            assetData = data.tree.filter(f => {
-                const isInBase = f.path.startsWith(BASE_PATH + '/');
-                const isMedia = /\.(gif|jpe?g|png|webp|svg|mp4|webm|mov)$/i.test(f.path);
-                const isIgnored = IGNORE_DIRS.some(dir => f.path.includes(`/${dir}/`));
-                return isInBase && isMedia && !isIgnored;
-            });
 
-            renderGallery(assetData);
-            document.getElementById('save-btn').style.display = 'inline-block';
-            statusEl.innerText = `Scan complete: ${assetData.length} items`;
-        } catch (e) {
-            console.error(e);
-            statusEl.innerText = "API Error. Check console.";
-        }
-    }
-
-    // JSON保存関数も念のため再確認（なければ追加）
-    function downloadJSON() { 
-        const blob = new Blob([JSON.stringify(assetData, null, 2)], {type: 'application/json'});
-        const a = document.createElement('a');
-        a.href = URL.createObjectURL(blob);
-        a.download = 'list.json';
-        a.click(); 
-    }
-    
-    // --- Asset Mode ---
-    async function loadAssets() {
+    // --- Asset Mode Logic ---
+    async function loadAssetList() {
         try {
             const res = await fetch(`./${BASE_PATH}/list.json?t=${Date.now()}`);
-            assetData = await res.json();
-            renderGallery(assetData);
-        } catch (e) { document.getElementById('status').innerText = "Asset list not found."; }
+            if (res.ok) assetData = await res.json();
+            document.getElementById('status').innerText = `${assetData.length} assets loaded.`;
+        } catch (e) { document.getElementById('status').innerText = "list.json not found."; }
     }
 
-    function renderGallery(files) {
+    async function fetchDeepScan() {
+        document.getElementById('status').innerText = "Scanning GitHub API...";
+        try {
+            const repo = await (await fetch(`https://api.github.com/repos/${USER}/${REPO}`)).json();
+            const tree = await (await fetch(`https://api.github.com/repos/${USER}/${REPO}/git/trees/${repo.default_branch}?recursive=1`)).json();
+            
+            assetData = tree.tree.filter(f => {
+                const inBase = f.path.startsWith(BASE_PATH + '/');
+                const isMedia = /\.(gif|jpe?g|png|webp|svg|mp4|webm|mov)$/i.test(f.path);
+                const isIgnored = IGNORE_DIRS.some(d => f.path.includes(`/${d}/`));
+                return inBase && isMedia && !isIgnored;
+            });
+            
+            renderAssets(assetData);
+            document.getElementById('save-btn').style.display = 'inline-block';
+            document.getElementById('status').innerText = `Scan success: ${assetData.length} items.`;
+        } catch (e) { document.getElementById('status').innerText = "Scan Error."; }
+    }
+
+    function renderAssets(files) {
         const container = document.getElementById('catalog-container');
         container.innerHTML = '';
         const groups = {};
+        
         files.forEach(f => {
-            const folder = f.path.split('/').slice(0, -1).join(' / ') || 'ROOT';
-            if (!groups[folder]) groups[folder] = [];
-            groups[folder].push(f);
+            const parts = f.path.split('/');
+            const name = parts.pop();
+            const folder = parts.join(' / ');
+            const isHidden = parts.some(p => p.startsWith('.'));
+            const key = isHidden ? `🙈 HIDDEN: ${folder}` : folder;
+            if (!groups[key]) groups[key] = { items: [], isHidden };
+            groups[key].items.push({...f, name});
         });
 
-        Object.keys(groups).sort().forEach(folder => {
+        Object.keys(groups).sort((a,b) => groups[a].isHidden - groups[b].isHidden).forEach(key => {
             const section = document.createElement('div');
-            section.className = 'folder-section';
-            section.innerHTML = `<div class="folder-title">${folder}</div><div class="grid"></div>`;
+            section.className = `folder-section ${groups[key].isHidden ? 'hidden-folder' : ''}`;
+            section.innerHTML = `<div class="folder-title">${key}</div><div class="grid"></div>`;
             const grid = section.querySelector('.grid');
-            groups[folder].forEach(f => {
+            if (document.getElementById('viewSelect').value === 'list') grid.classList.add('list-view');
+
+            groups[key].items.forEach(f => {
                 const url = `https://raw.githubusercontent.com/${USER}/${REPO}/main/${f.path}`;
-                const name = f.path.split('/').pop();
                 const isVideo = /\.(mp4|webm|mov)$/i.test(f.path);
-                
+                const isHeavy = f.size > 1024 * 1024;
+                const shouldHide = isHeavy || groups[key].isHidden;
+
                 const card = document.createElement('div');
                 card.className = 'card';
-                card.dataset.name = name.toLowerCase();
+                card.dataset.name = f.name.toLowerCase();
                 card.innerHTML = `
-                    <div class="media-container" onclick="window.open('${url}')">
-                        ${isVideo ? `<video src="${url}" muted loop onmouseover="this.play()" onmouseout="this.pause()"></video>` : `<img src="${url}" loading="lazy">`}
+                    <div class="media-container" id="media-${f.sha}" onclick="window.open('${url}')">
+                        ${shouldHide ? `<div class="placeholder"><span>${isHeavy ? 'Heavy' : 'Hidden'}</span><br><button onclick="event.stopPropagation(); loadMedia('${f.sha}','${url}',${isVideo})">表示</button></div>` : renderMedia(url, isVideo)}
                     </div>
-                    <div class="info"><div class="name">${name}</div><div class="meta">${(f.size/1024).toFixed(1)} KB</div></div>
+                    <div class="info"><div class="name">${f.name}</div><div class="meta">${(f.size/1024).toFixed(1)} KB</div></div>
                     <button class="action-btn" onclick="copyTo('${url}')">URLコピー</button>
                 `;
                 grid.appendChild(card);
@@ -177,17 +189,18 @@
         });
     }
 
-    // --- Link Mode ---
-    async function loadLinks() {
+    // --- Link/Docs Mode Logic ---
+    async function loadLinkData() {
         try {
             const res = await fetch(`./${BASE_PATH}/links.csv?t=${Date.now()}`);
+            if (!res.ok) return;
             const text = await res.text();
-            const rows = text.split('\n').slice(1); // ヘッダーを飛ばす
-            linkData = rows.filter(r => r.trim()).map(row => {
-                const cols = row.split(',').map(c => c.replace(/"/g, ''));
-                return { category: cols[0], title: cols[1], url: cols[2], thumb: cols[3] };
+            const rows = text.split('\n').slice(1);
+            linkData = rows.filter(r => r.trim()).map(r => {
+                const c = r.split(',').map(v => v.replace(/"/g, '').trim());
+                return { cat: c[0], title: c[1], url: c[2], thumb: c[3], prompt: c[4] };
             });
-        } catch (e) { document.getElementById('status').innerText = "links.csv not found."; }
+        } catch (e) { console.warn("CSV not found."); }
     }
 
     function renderLinks(links) {
@@ -195,26 +208,31 @@
         container.innerHTML = '';
         const groups = {};
         links.forEach(l => {
-            if (!groups[l.category]) groups[l.category] = [];
-            groups[l.category].push(l);
+            if (!groups[l.cat]) groups[l.cat] = [];
+            groups[l.cat].push(l);
         });
 
-        Object.keys(groups).forEach(cat => {
+        Object.keys(groups).sort().forEach(cat => {
             const section = document.createElement('div');
             section.className = 'folder-section';
             section.innerHTML = `<div class="folder-title">${cat}</div><div class="grid"></div>`;
             const grid = section.querySelector('.grid');
+            if (document.getElementById('viewSelect').value === 'list') grid.classList.add('list-view');
+
             groups[cat].forEach(l => {
                 const card = document.createElement('div');
                 card.className = 'card';
-                card.dataset.name = l.title.toLowerCase();
+                card.dataset.name = (l.title + (l.prompt || '')).toLowerCase();
                 card.innerHTML = `
                     <div class="media-container" onclick="window.open('${l.url}')">
-                        ${l.thumb ? `<img src="${l.thumb}" loading="lazy">` : `<div style="color:#ccc; font-size:2rem;">🔗</div>`}
+                        ${l.thumb ? `<img src="${l.thumb}" loading="lazy">` : `<div style="font-size:2rem">🔗</div>`}
                     </div>
-                    <div class="info"><div class="name">${l.title}</div><div class="meta">${l.url}</div></div>
-                    <button class="action-btn" onclick="window.open('${l.url}')">サイトを開く</button>
-                    <button class="action-btn" onclick="copyTo('${l.url}')">URLコピー</button>
+                    <div class="info">
+                        <div class="name">${l.title}</div>
+                        ${l.prompt ? `<div class="prompt-preview">${l.prompt}</div>` : `<div class="meta">${l.url}</div>`}
+                    </div>
+                    <button class="action-btn" onclick="window.open('${l.url}')">開く</button>
+                    <button class="action-btn" onclick="copyTo('${l.prompt || l.url}')">${l.prompt ? 'プロンプトをコピー' : 'URLをコピー'}</button>
                 `;
                 grid.appendChild(card);
             });
@@ -222,7 +240,21 @@
         });
     }
 
-    // 検索機能 (両モード共通)
+    // --- Utilities ---
+    function renderMedia(url, isVideo) {
+        return isVideo ? `<video src="${url}" muted loop onmouseover="this.play()" onmouseout="this.pause()"></video>` : `<img src="${url}" loading="lazy">`;
+    }
+
+    function loadMedia(sha, url, isVideo) {
+        document.getElementById(`media-${sha}`).innerHTML = renderMedia(url, isVideo);
+    }
+
+    function loadAllMedia() {
+        document.querySelectorAll('.placeholder button').forEach(b => b.click());
+    }
+
+    function changeView(v) { (currentMode === 'assets') ? renderAssets(assetData) : renderLinks(linkData); }
+
     function filterCards() {
         const q = document.getElementById('searchInput').value.toLowerCase();
         document.querySelectorAll('.card').forEach(c => c.style.display = c.dataset.name.includes(q) ? 'flex' : 'none');
@@ -231,11 +263,16 @@
         });
     }
 
-    function copyTo(t) {
-        navigator.clipboard.writeText(t).then(() => {
-            const toast = document.getElementById('toast');
-            toast.style.opacity = '1';
-            setTimeout(() => toast.style.opacity = '0', 1500);
+    function downloadJSON() {
+        const blob = new Blob([JSON.stringify(assetData, null, 2)], {type: 'application/json'});
+        const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'list.json'; a.click();
+    }
+
+    function copyTo(text) {
+        navigator.clipboard.writeText(text).then(() => {
+            const t = document.getElementById('toast');
+            t.style.opacity = '1';
+            setTimeout(() => t.style.opacity = '0', 1500);
         });
     }
 
