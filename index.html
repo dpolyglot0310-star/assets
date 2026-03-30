@@ -101,6 +101,7 @@
             <label><input type="checkbox" id="px-dither" checked> Dithering ON</label>
             <label><input type="checkbox" id="px-raw"> Raw (色変換なし)</label>
             <label>BG: <input type="color" id="px-bg" value="#000000" style="width:36px;height:22px;padding:0;border:none;cursor:pointer;"></label>
+            <label><input type="checkbox" id="px-gridline"> Grid: <input type="color" id="px-gridline-color" value="#333333" style="width:36px;height:22px;padding:0;border:none;cursor:pointer;"> <input type="number" id="px-gridline-w" value="1" min="1" max="5" style="width:36px;background:#2a2a2a;color:#eee;border:1px solid #444;border-radius:4px;padding:2px 4px;">px</label>
             <label>Zoom: <input type="range" id="px-zoom" min="1" max="5" step="0.1" value="1" style="width:90px;"> <span id="px-zoom-val">100%</span></label>
         </div>
         <div class="px-row"><label>Pixel Size</label><input type="range" id="px-grid" min="2" max="60" value="10"><span class="px-val" id="px-grid-val">10</span></div>
@@ -380,6 +381,7 @@
         pixelApp = new p5(function(p) {
             let rawImg = null, selectedHex = null, swapMap = {};
             let gridSize = 10, quantizeStep = 32, useDither = true, rawMode = false, bgColor = '#000000';
+            let gridLine = false, gridLineColor = '#333333', gridLineWeight = 1;
 
             p.setup = () => {
                 const w = container.parentElement.clientWidth || 640;
@@ -422,7 +424,7 @@
                     }
                 }
                 const paletteSet = new Set();
-                p.noStroke();
+                if (gridLine) { p.stroke(gridLineColor); p.strokeWeight(gridLineWeight); } else { p.noStroke(); }
                 for (let y=0;y<rows;y++) for (let x=0;x<cols;x++) {
                     const i=(x+y*cols)*4;
                     const oh = toHexStr(buf[i],buf[i+1],buf[i+2]);
@@ -460,7 +462,7 @@
                 }
                 rawImg = img; p.redraw();
             });
-            p.pxUpdate = (gs,qs,dt,rm,bg) => { gridSize=gs; quantizeStep=qs; useDither=dt; rawMode=rm; bgColor=bg; p.redraw(); };
+            p.pxUpdate = (gs,qs,dt,rm,bg,gl,glc,glw) => { gridSize=gs; quantizeStep=qs; useDither=dt; rawMode=rm; bgColor=bg; gridLine=gl; gridLineColor=glc; gridLineWeight=glw; p.redraw(); };
             p.highlight = hv => {selectedHex=(selectedHex===hv?null:hv);p.redraw();};
             p.swap      = (from,to) => {if(from===to)delete swapMap[from];else swapMap[from]=to;p.redraw();};
             p.resetSwap = hv => {delete swapMap[hv];p.redraw();};
@@ -476,14 +478,20 @@
             const bg=document.getElementById('px-bg').value;
             document.getElementById('px-grid-val').innerText=gs;
             document.getElementById('px-color-val').innerText=qs;
+            const gl=document.getElementById('px-gridline').checked;
+            const glc=document.getElementById('px-gridline-color').value;
+            const glw=parseInt(document.getElementById('px-gridline-w').value)||1;
             ['px-dither','px-grid','px-color'].forEach(id=>document.getElementById(id).disabled=rm);
-            pixelApp.pxUpdate(gs,qs,dt,rm,bg);
+            pixelApp.pxUpdate(gs,qs,dt,rm,bg,gl,glc,glw);
         };
         document.getElementById('px-grid').oninput=pxUpdate;
         document.getElementById('px-color').oninput=pxUpdate;
         document.getElementById('px-dither').onchange=pxUpdate;
         document.getElementById('px-raw').onchange=pxUpdate;
         document.getElementById('px-bg').oninput=pxUpdate;
+        document.getElementById('px-gridline').onchange=pxUpdate;
+        document.getElementById('px-gridline-color').oninput=pxUpdate;
+        document.getElementById('px-gridline-w').oninput=pxUpdate;
         document.getElementById('px-zoom').oninput=()=>{
             const v=document.getElementById('px-zoom').value;
             document.getElementById('pixel-app-container').style.transform=`scale(${v})`;
