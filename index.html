@@ -97,6 +97,11 @@
     <div class="px-canvas-wrap"><div id="pixel-app-container"></div></div>
     <div class="px-ui">
         <input type="file" id="px-file" accept="image/*" style="margin-bottom:12px; width:100%; color:#eee;">
+        <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;">
+            <button id="px-crop-btn" style="display:none;background:#ff6a00;color:white;border:none;padding:5px 12px;border-radius:6px;cursor:pointer;font-size:12px;" onclick="pixelApp.startCrop()">✂ 範囲選択</button>
+            <button id="px-crop-confirm" style="display:none;background:#28a745;color:white;border:none;padding:5px 12px;border-radius:6px;cursor:pointer;font-size:12px;" onclick="pixelApp.confirmCrop()">✔ ここで切り出す</button>
+            <button id="px-crop-reset" style="display:none;background:#555;color:white;border:none;padding:5px 12px;border-radius:6px;cursor:pointer;font-size:12px;" onclick="pixelApp.resetCrop()">↩ 全体に戻す</button>
+        </div>
         <div class="px-switch">
             <label><input type="checkbox" id="px-dither" checked> Dithering ON</label>
             <label><input type="checkbox" id="px-raw"> Raw (色変換なし)</label>
@@ -246,6 +251,7 @@
                     </div>
                     <div style="display:flex; flex-direction:column; gap:2px;">
                         ${f.type === 'media' ? `<button class="action-btn" onclick="copyTo('${url}')">URLコピー</button>` : ''}
+                        ${f.type === 'media' && !isVideo ? `<button class="action-btn" style="color:#00aaff;border-color:#00aaff;" onclick="sendToPixel('${url}')">→ Pixel</button>` : ''}
                         ${f.relatedMd ? `<button class="action-btn" id="btn-md-${f.sha}" onclick="copyMdText('${f.sha}')" style="display:none">内容をコピー</button>` : ''}
                     </div>
                 `;
@@ -268,6 +274,20 @@
                 if (btn) btn.style.display = 'block';
             }
         } catch (e) { console.warn("MD load error", url); }
+    }
+
+    function sendToPixel(url) {
+        switchMode('pixel');
+        // p5が初期化されるまで少し待ってからロード
+        const tryLoad = () => {
+            if (pixelApp && pixelApp.setImage) {
+                const maxPx = parseInt(document.getElementById('px-maxpx').value) || 0;
+                pixelApp.setImage(url, maxPx);
+            } else {
+                setTimeout(tryLoad, 100);
+            }
+        };
+        tryLoad();
     }
 
     function copyMdText(sha) {
@@ -379,9 +399,12 @@
     function _buildPixelApp() {
         const container = document.getElementById('pixel-app-container');
         pixelApp = new p5(function(p) {
-            let rawImg = null, selectedHex = null, swapMap = {};
+            let sourceImg = null, rawImg = null, selectedHex = null, swapMap = {};
             let gridSize = 10, quantizeStep = 32, useDither = true, rawMode = false, bgColor = '#000000';
             let gridLine = false, gridLineColor = '#333333', gridLineWeight = 1;
+            // クロップ選択用
+            let cropMode = false, cropDone = false;
+            let cx0=0,cy0=0,cx1=0,cy1=0, dragging=false;
 
             p.setup = () => {
                 const w = container.parentElement.clientWidth || 640;
@@ -395,6 +418,28 @@
             };
 
             p.draw = () => {
+                if (!rawImg && !sourceImg) { p.background(25); return; }
+                // クロップモード：元画像を表示して選択矩形を描画
+                if (cropMode) {
+                    const drawW = p.width;
+                    const drawH = p.floor(drawW / (sourceImg.width / sourceImg.height));
+                    if (p.height !== drawH) { p.resizeCanvas(drawW, drawH); p.redraw(); return; }
+                    p.background(0);
+                    p.image(sourceImg, 0, 0, drawW, drawH);
+                    if (dragging || cropDone) {
+                        const rx=Math.min(cx0,cx1), ry=Math.min(cy0,cy1);
+                        const rw=Math.abs(cx1-cx0), rh=Math.abs(cy1-cy0);
+                        p.noFill(); p.stroke(255,80,0); p.strokeWeight(2);
+                        p.rect(rx,ry,rw,rh);
+                        // 選択外を半透明に
+                        p.fill(0,0,0,120); p.noStroke();
+                        p.rect(0,0,drawW,ry);
+                        p.rect(0,ry+rh,drawW,drawH-ry-rh);
+                        p.rect(0,ry,rx,rh);
+                        p.rect(rx+rw,ry,drawW-rx-rw,rh);
+                    }
+                    return;
+                }
                 if (!rawImg) { p.background(25); return; }
                 const drawW = p.width;
                 const drawH = p.floor(drawW / (rawImg.width / rawImg.height));
@@ -454,14 +499,52 @@
             }
             function lum(p,h){const c=p.color(h);return .299*p.red(c)+.587*p.green(c)+.114*p.blue(c);}
 
+            // マウス操作（クロップ選択）
+            p.mousePressed = () => {
+                if (!cropMode) return;
+                cx0=p.mouseX; cy0=p.mouseY; cx1=cx0; cy1=cy0; dragging=true; cropDone=false;
+            };
+            p.mouseDragged = () => {
+                if (!cropMode || !dragging) return;
+                cx1=p.constrain(p.mouseX,0,p.width); cy1=p.constrain(p.mouseY,0,p.height);
+                p.redraw();
+            };
+            p.mouseReleased = () => {
+                if (!cropMode || !dragging) return;
+                dragging=false; cropDone=true; p.redraw();
+            };
+
             // 外部から呼ぶ口
             p.setImage = (url, maxPx) => p.loadImage(url, img => {
                 if (maxPx > 0 && (img.width > maxPx || img.height > maxPx)) {
                     const s = maxPx / Math.max(img.width, img.height);
                     img.resize(Math.round(img.width*s), Math.round(img.height*s));
                 }
-                rawImg = img; p.redraw();
+                sourceImg = img; rawImg = null; cropMode = false; cropDone = false;
+                p.redraw();
+                document.getElementById('px-crop-btn').style.display='inline-block';
+                document.getElementById('px-crop-reset').style.display='none';
             });
+            p.startCrop = () => { if (!sourceImg) return; cropMode=true; cropDone=false; p.redraw(); document.getElementById('px-crop-confirm').style.display='inline-block'; };
+            p.confirmCrop = () => {
+                if (!cropDone) return;
+                const drawW=p.width, drawH=p.floor(drawW/(sourceImg.width/sourceImg.height));
+                const scaleX=sourceImg.width/drawW, scaleY=sourceImg.height/drawH;
+                const rx=Math.round(Math.min(cx0,cx1)*scaleX), ry=Math.round(Math.min(cy0,cy1)*scaleY);
+                const rw=Math.round(Math.abs(cx1-cx0)*scaleX), rh=Math.round(Math.abs(cy1-cy0)*scaleY);
+                if (rw<2||rh<2) return;
+                rawImg = sourceImg.get(rx,ry,rw,rh);
+                cropMode=false;
+                document.getElementById('px-crop-confirm').style.display='none';
+                document.getElementById('px-crop-reset').style.display='inline-block';
+                p.redraw();
+            };
+            p.resetCrop = () => {
+                rawImg=null; cropMode=false; cropDone=false;
+                document.getElementById('px-crop-confirm').style.display='none';
+                document.getElementById('px-crop-reset').style.display='none';
+                p.redraw();
+            };
             p.pxUpdate = (gs,qs,dt,rm,bg,gl,glc,glw) => { gridSize=gs; quantizeStep=qs; useDither=dt; rawMode=rm; bgColor=bg; gridLine=gl; gridLineColor=glc; gridLineWeight=glw; p.redraw(); };
             p.highlight = hv => {selectedHex=(selectedHex===hv?null:hv);p.redraw();};
             p.swap      = (from,to) => {if(from===to)delete swapMap[from];else swapMap[from]=to;p.redraw();};
