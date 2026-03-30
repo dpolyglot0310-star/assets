@@ -313,8 +313,7 @@
         // p5が初期化されるまで少し待ってからロード
         const tryLoad = () => {
             if (pixelApp && pixelApp.setImage) {
-                const maxPx = parseInt(document.getElementById('px-maxpx').value) || 0;
-                pixelApp.setImage(url, maxPx);
+                pixelApp.setImage(url);
             } else {
                 setTimeout(tryLoad, 100);
             }
@@ -542,23 +541,20 @@
 
             const wrap = () => document.getElementById('pixel-app-container').closest('.px-canvas-wrap');
 
-            p.setImage = (url, maxPx) => p.loadImage(url, img => {
-                if (maxPx>0&&(img.width>maxPx||img.height>maxPx)) {
-                    const s=maxPx/Math.max(img.width,img.height);
-                    img.resize(Math.round(img.width*s),Math.round(img.height*s));
-                }
+            p.setImage = (url) => p.loadImage(url, img => {
                 sourceImg=img; rawImg=img.get();
+                swapMap={}; selectedHex=null;
                 document.getElementById('px-crop-btn').style.display='inline-block';
                 document.getElementById('px-crop-confirm').style.display='none';
                 document.getElementById('px-crop-reset').style.display='none';
                 hideCropRect();
-                p.redraw();
+                pxSelected.clear(); updateBulkBar();
+                // resizeCanvasのタイミングずれを避けるためで1フレーム待ってから再描画
+                setTimeout(() => p.redraw(), 0);
             });
             p.cropConfirm = () => {
                 const cv = p.canvas;
                 const cr = document.getElementById('crop-rect');
-                const canvasRect = cv.getBoundingClientRect();
-                const wrapRect = cv.parentElement.getBoundingClientRect();
                 const scaleX = sourceImg.width / cv.offsetWidth;
                 const scaleY = sourceImg.height / cv.offsetHeight;
                 const rx = Math.round((parseInt(cr.style.left)||0) * scaleX);
@@ -575,33 +571,6 @@
             p.cropReset = () => {
                 rawImg = sourceImg ? sourceImg.get() : null;
                 hideCropRect();
-                document.getElementById('px-crop-confirm').style.display='none';
-                document.getElementById('px-crop-reset').style.display='none';
-                p.redraw();
-            };
-            p.startCrop = () => {
-                if (!sourceImg) return;
-                rawImg=null; cropMode=true; cropDone=false;
-                wrap().style.overflow='hidden'; p.canvas.style.cursor='crosshair';
-                document.getElementById('px-crop-confirm').style.display='inline-block';
-                p.redraw();
-            };
-            p.confirmCrop = () => {
-                if (!cropDone) return;
-                const dW=p.width, dH=p.floor(dW/(sourceImg.width/sourceImg.height));
-                const sx=sourceImg.width/dW, sy=sourceImg.height/dH;
-                const rx=Math.round(Math.min(cx0,cx1)*sx), ry=Math.round(Math.min(cy0,cy1)*sy);
-                const rw=Math.round(Math.abs(cx1-cx0)*sx), rh=Math.round(Math.abs(cy1-cy0)*sy);
-                if (rw<2||rh<2) return;
-                rawImg=sourceImg.get(rx,ry,rw,rh); cropMode=false;
-                wrap().style.overflow='auto'; p.canvas.style.cursor='default';
-                document.getElementById('px-crop-confirm').style.display='none';
-                document.getElementById('px-crop-reset').style.display='inline-block';
-                p.redraw();
-            };
-            p.resetCrop = () => {
-                rawImg=sourceImg ? sourceImg.get() : null; cropMode=false; cropDone=false;
-                wrap().style.overflow='auto'; p.canvas.style.cursor='default';
                 document.getElementById('px-crop-confirm').style.display='none';
                 document.getElementById('px-crop-reset').style.display='none';
                 p.redraw();
@@ -651,7 +620,7 @@
         };
         document.getElementById('px-file').onchange=e=>{
             const r=new FileReader();
-            r.onload=ev=>pixelApp.setImage(ev.target.result, 0);
+            r.onload=ev=>pixelApp.setImage(ev.target.result);
             r.readAsDataURL(e.target.files[0]);
         };
     }
