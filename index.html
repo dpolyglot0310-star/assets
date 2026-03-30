@@ -513,20 +513,42 @@
             }
             function lum(p,h){const c=p.color(h);return .299*p.red(c)+.587*p.green(c)+.114*p.blue(c);}
 
-            // マウス操作（クロップ選択）
-            p.mousePressed = () => {
-                if (!cropMode) return;
-                cx0=p.mouseX; cy0=p.mouseY; cx1=cx0; cy1=cy0; dragging=true; cropDone=false;
+            // マウス操作（クロップ選択）— p5のmouseX/Yはzoom/scroll非考慮なので生イベントで取る
+            const getCanvasPos = (e) => {
+                const cv = p.canvas;
+                const rect = cv.getBoundingClientRect();
+                const zoom = rect.width / cv.offsetWidth || 1;
+                const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+                const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+                return {
+                    x: Math.max(0, Math.min(p.width,  (clientX - rect.left) / zoom)),
+                    y: Math.max(0, Math.min(p.height, (clientY - rect.top)  / zoom))
+                };
             };
-            p.mouseDragged = () => {
-                if (!cropMode || !dragging) return;
-                cx1=p.constrain(p.mouseX,0,p.width); cy1=p.constrain(p.mouseY,0,p.height);
+            const onDown = (e) => {
+                if (!cropMode) return;
+                e.preventDefault();
+                const pos = getCanvasPos(e);
+                cx0=pos.x; cy0=pos.y; cx1=pos.x; cy1=pos.y; dragging=true; cropDone=false;
                 p.redraw();
             };
-            p.mouseReleased = () => {
+            const onMove = (e) => {
+                if (!cropMode || !dragging) return;
+                e.preventDefault();
+                const pos = getCanvasPos(e);
+                cx1=pos.x; cy1=pos.y;
+                p.redraw();
+            };
+            const onUp = (e) => {
                 if (!cropMode || !dragging) return;
                 dragging=false; cropDone=true; p.redraw();
             };
+            p.canvas.addEventListener('mousedown',  onDown);
+            p.canvas.addEventListener('mousemove',  onMove);
+            p.canvas.addEventListener('mouseup',    onUp);
+            p.canvas.addEventListener('touchstart', onDown, {passive:false});
+            p.canvas.addEventListener('touchmove',  onMove, {passive:false});
+            p.canvas.addEventListener('touchend',   onUp);
 
             // 外部から呼ぶ口
             p.setImage = (url, maxPx) => p.loadImage(url, img => {
@@ -539,7 +561,15 @@
                 document.getElementById('px-crop-btn').style.display='inline-block';
                 document.getElementById('px-crop-reset').style.display='none';
             });
-            p.startCrop = () => { if (!sourceImg) return; cropMode=true; cropDone=false; p.redraw(); document.getElementById('px-crop-confirm').style.display='inline-block'; };
+            p.startCrop = () => {
+                if (!sourceImg) return;
+                cropMode=true; cropDone=false;
+                p.redraw();
+                document.getElementById('px-crop-confirm').style.display='inline-block';
+                // クロップ中はcanvasラッパーのスクロールをロック
+                document.getElementById('pixel-app-container').closest('.px-canvas-wrap').style.overflow='hidden';
+                p.canvas.style.cursor='crosshair';
+            };
             p.confirmCrop = () => {
                 if (!cropDone) return;
                 const drawW=p.width, drawH=p.floor(drawW/(sourceImg.width/sourceImg.height));
@@ -551,12 +581,16 @@
                 cropMode=false;
                 document.getElementById('px-crop-confirm').style.display='none';
                 document.getElementById('px-crop-reset').style.display='inline-block';
+                document.getElementById('pixel-app-container').closest('.px-canvas-wrap').style.overflow='auto';
+                p.canvas.style.cursor='default';
                 p.redraw();
             };
             p.resetCrop = () => {
                 rawImg=null; cropMode=false; cropDone=false;
                 document.getElementById('px-crop-confirm').style.display='none';
                 document.getElementById('px-crop-reset').style.display='none';
+                document.getElementById('pixel-app-container').closest('.px-canvas-wrap').style.overflow='auto';
+                p.canvas.style.cursor='default';
                 p.redraw();
             };
             p.pxUpdate = (gs,qs,dt,rm,bg,gl,glc,glw) => { gridSize=gs; quantizeStep=qs; useDither=dt; rawMode=rm; bgColor=bg; gridLine=gl; gridLineColor=glc; gridLineWeight=glw; p.redraw(); };
