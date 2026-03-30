@@ -62,7 +62,8 @@
         .px-val { width: 44px; text-align: right; font-family: monospace; color: #00ffcc; font-size: 12px; }
         .px-switch { background: #2a2a2a; padding: 10px; border-radius: 6px; margin-bottom: 12px; display: flex; gap: 20px; font-size: 0.88em; flex-wrap: wrap; }
         .px-palette { display: grid; grid-template-columns: repeat(auto-fill, minmax(78px, 1fr)); gap: 8px; border-top: 1px solid #333; padding-top: 12px; margin-top: 12px; }
-        .px-chip { background: #2a2a2a; padding: 7px; border-radius: 6px; text-align: center; font-size: 11px; border: 2px solid #333; }
+        .px-chip input[type="checkbox"] { position:absolute; top:4px; left:4px; cursor:pointer; }
+        .px-chip { background: #2a2a2a; padding: 7px; border-radius: 6px; text-align: center; font-size: 11px; border: 2px solid #333; position:relative; }
         .px-chip.active { border-color: #00ffcc; background: #333; }
         .px-box { width: 100%; height: 28px; border-radius: 4px; margin-bottom: 4px; border: 1px solid rgba(255,255,255,0.1); cursor: pointer; }
         .px-chip input[type="color"] { width: 100%; height: 20px; border: none; background: none; cursor: pointer; padding: 0; }
@@ -70,8 +71,6 @@
         .px-bulk { display:flex; gap:6px; align-items:center; flex-wrap:wrap; margin-bottom:10px; padding:8px; background:#2a2a2a; border-radius:6px; }
         .px-bulk select { background:#1e1e1e; color:#eee; border:1px solid #444; border-radius:4px; padding:3px 6px; font-size:11px; }
         .px-bulk button { font-size:11px; padding:4px 10px; border-radius:4px; border:none; cursor:pointer; }
-        .px-chip input[type="checkbox"] { position:absolute; top:4px; left:4px; cursor:pointer; }
-        .px-chip { position:relative; }
     </style>
 </head>
 <body>
@@ -443,7 +442,12 @@
                 p.noLoop();
                 new ResizeObserver(() => {
                     const nw = container.parentElement.clientWidth;
-                    if (nw > 0 && nw !== p.width) { p.resizeCanvas(nw, p.height); p.redraw(); }
+                    if (nw > 0 && nw !== p.width) {
+                        p.resizeCanvas(nw, p.height);
+                        // クロップ矩形表示中なら中央に再配置
+                        if (document.getElementById('crop-rect').style.display !== 'none') showCropRect();
+                        p.redraw();
+                    }
                 }).observe(container.parentElement);
             };
 
@@ -489,50 +493,45 @@
                         for (let i=0;i<buf.length;i+=4){buf[i]=qt(buf[i]);buf[i+1]=qt(buf[i+1]);buf[i+2]=qt(buf[i+2]);}
                     }
                 }
+                // maxColors制限：先にリマップを構範してから一度だけ描画
                 const paletteSet=new Set();
+                for (let y=0;y<rows;y++) for (let x=0;x<cols;x++) {
+                    const i=(x+y*cols)*4;
+                    paletteSet.add(swapMap[toHexStr(buf[i],buf[i+1],buf[i+2])]||toHexStr(buf[i],buf[i+1],buf[i+2]));
+                }
+                const sorted=Array.from(paletteSet).sort((a,b)=>lum(p,b)-lum(p,a));
+                const limited=sorted.slice(0,maxColors);
+                // 制限外の色→最近傍色のリマップテーブルを一度構範
+                const remap={};
+                sorted.forEach(h=>{
+                    if(!limited.includes(h)){
+                        let best=limited[0],bestD=Infinity;
+                        const c=p.color(h),r=p.red(c),g=p.green(c),b=p.blue(c);
+                        limited.forEach(lh=>{const lc=p.color(lh),d=(p.red(lc)-r)**2+(p.green(lc)-g)**2+(p.blue(lc)-b)**2;if(d<bestD){bestD=d;best=lh;}});
+                        remap[h]=best;
+                    }
+                });
                 if (gridLine){p.stroke(gridLineColor);p.strokeWeight(gridLineWeight);}else{p.noStroke();}
                 for (let y=0;y<rows;y++) for (let x=0;x<cols;x++) {
                     const i=(x+y*cols)*4;
-                    const oh=toHexStr(buf[i],buf[i+1],buf[i+2]), dh=swapMap[oh]||oh;
-                    paletteSet.add(dh);
+                    const oh=swapMap[toHexStr(buf[i],buf[i+1],buf[i+2])]||toHexStr(buf[i],buf[i+1],buf[i+2]);
+                    const dh=remap[oh]||oh;
                     const dc=p.color(dh);
                     p.fill(!selectedHex||dh===selectedHex ? dc : p.color(p.red(dc)*.2,p.green(dc)*.2,p.blue(dc)*.2));
                     p.rect(x*gridSize,y*gridSize,gridSize,gridSize);
                 }
-                const sorted=Array.from(paletteSet).sort((a,b)=>lum(p,b)-lum(p,a));
-                // maxColors制限：超えた色は輝度が近い色にマッピング
-                const limited = sorted.slice(0, maxColors);
-                if (limited.length < sorted.length) {
-                    // 制限外の色を最近傍色に置き換えて再描画
-                    const remap = {};
-                    sorted.forEach(h => {
-                        if (!limited.includes(h)) {
-                            let best=limited[0], bestD=Infinity;
-                            const c=p.color(h), r=p.red(c), g=p.green(c), b=p.blue(c);
-                            limited.forEach(lh => { const lc=p.color(lh); const d=(p.red(lc)-r)**2+(p.green(lc)-g)**2+(p.blue(lc)-b)**2; if(d<bestD){bestD=d;best=lh;} });
-                            remap[h]=best;
-                        }
-                    });
-                    if (Object.keys(remap).length) {
-                        p.noStroke();
-                        if (gridLine){p.stroke(gridLineColor);p.strokeWeight(gridLineWeight);}
-                        for (let y=0;y<rows;y++) for (let x=0;x<cols;x++) {
-                            const i=(x+y*cols)*4, oh=toHexStr(buf[i],buf[i+1],buf[i+2]), dh=remap[swapMap[oh]||oh]||(swapMap[oh]||oh);
-                            const dc=p.color(dh);
-                            p.fill(!selectedHex||dh===selectedHex ? dc : p.color(p.red(dc)*.2,p.green(dc)*.2,p.blue(dc)*.2));
-                            p.rect(x*gridSize,y*gridSize,gridSize,gridSize);
-                        }
-                    }
-                }
+                // インデックス表示（limited基準）
                 if (selectedHex&&gridSize>8) {
-                    const si=sorted.indexOf(selectedHex);
+                    const si=limited.indexOf(selectedHex);
                     p.textAlign(p.CENTER,p.CENTER); p.textSize(gridSize*.6);
                     for (let y=0;y<rows;y++) for (let x=0;x<cols;x++) {
-                        const i=(x+y*cols)*4, dh=swapMap[toHexStr(buf[i],buf[i+1],buf[i+2])]||toHexStr(buf[i],buf[i+1],buf[i+2]);
-                        if (dh===selectedHex){p.fill(lum(p,dh)>128?0:255);p.text(si,x*gridSize+gridSize/2,y*gridSize+gridSize/2);}
+                        const i=(x+y*cols)*4;
+                        const oh=swapMap[toHexStr(buf[i],buf[i+1],buf[i+2])]||toHexStr(buf[i],buf[i+1],buf[i+2]);
+                        const dh=remap[oh]||oh;
+                        if(dh===selectedHex){p.fill(lum(p,dh)>128?0:255);p.text(si,x*gridSize+gridSize/2,y*gridSize+gridSize/2);}
                     }
                 }
-                renderPxPalette(limited, selectedHex, swapMap);
+                renderPxPalette(limited,selectedHex,swapMap);
             };
 
             function sp(buf,x,y,cols,rows,er,eg,eb,w){
@@ -628,7 +627,7 @@
             document.getElementById('px-grid-num').value=gs;
             document.getElementById('px-color-num').value=qs;
             document.getElementById('px-maxcol-num').value=mc;
-            ['px-dither','px-grid','px-color','px-grid-num','px-color-num'].forEach(id=>document.getElementById(id).disabled=rm);
+            ['px-dither','px-grid','px-color','px-grid-num','px-color-num','px-maxcol','px-maxcol-num'].forEach(id=>document.getElementById(id).disabled=rm);
             pixelApp.pxUpdate(gs,qs,dt,rm,bg,gl,glc,glw,mc);
         };
         // スライダ↔数値入力連動
