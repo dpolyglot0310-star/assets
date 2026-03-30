@@ -106,6 +106,7 @@
             <button id="px-crop-btn" style="display:none;background:#ff6a00;color:white;border:none;padding:5px 12px;border-radius:6px;cursor:pointer;font-size:12px;" onclick="pixelApp.startCrop()">✂ 範囲選択</button>
             <button id="px-crop-confirm" style="display:none;background:#28a745;color:white;border:none;padding:5px 12px;border-radius:6px;cursor:pointer;font-size:12px;" onclick="pixelApp.confirmCrop()">✔ ここで切り出す</button>
             <button id="px-crop-reset" style="display:none;background:#555;color:white;border:none;padding:5px 12px;border-radius:6px;cursor:pointer;font-size:12px;" onclick="pixelApp.resetCrop()">↩ 全体に戻す</button>
+            <button onclick="pixelApp && pixelApp.saveCanvas('pixel','png')" style="background:#444;color:white;border:none;padding:5px 12px;border-radius:6px;cursor:pointer;font-size:12px;">💾 保存</button>
         </div>
         <div class="px-switch">
             <label><input type="checkbox" id="px-dither" checked> Dithering ON</label>
