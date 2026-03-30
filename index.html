@@ -41,6 +41,24 @@
         .list-view .action-btn { width: auto; margin-left: 10px; padding: 4px 12px; margin-top: 0; }
         
         #toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.8); color: white; padding: 8px 18px; border-radius: 20px; font-size: 11px; opacity: 0; transition: opacity 0.3s; pointer-events: none; z-index: 2000; }
+
+        /* --- Pixel Indexer --- */
+        #pixel-panel { display: none; background: #121212; border-radius: 12px; padding: 20px; color: #eee; }
+        #pixel-panel.active { display: block; }
+        .px-canvas-wrap { border: 2px solid #444; background: #000; margin-bottom: 12px; overflow: auto; max-height: 60vh; }
+        #pixel-app-container { line-height: 0; transform-origin: 0 0; }
+        .px-ui { background: #1e1e1e; padding: 16px; border-radius: 10px; }
+        .px-row { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
+        .px-row label { width: 140px; font-size: 0.78em; color: #aaa; flex-shrink: 0; }
+        .px-row input[type="range"] { flex-grow: 1; cursor: pointer; }
+        .px-val { width: 44px; text-align: right; font-family: monospace; color: #00ffcc; font-size: 12px; }
+        .px-switch { background: #2a2a2a; padding: 10px; border-radius: 6px; margin-bottom: 12px; display: flex; gap: 20px; font-size: 0.88em; flex-wrap: wrap; }
+        .px-palette { display: grid; grid-template-columns: repeat(auto-fill, minmax(78px, 1fr)); gap: 8px; border-top: 1px solid #333; padding-top: 12px; margin-top: 12px; }
+        .px-chip { background: #2a2a2a; padding: 7px; border-radius: 6px; text-align: center; font-size: 11px; border: 2px solid #333; }
+        .px-chip.active { border-color: #00ffcc; background: #333; }
+        .px-box { width: 100%; height: 28px; border-radius: 4px; margin-bottom: 4px; border: 1px solid rgba(255,255,255,0.1); cursor: pointer; }
+        .px-chip input[type="color"] { width: 100%; height: 20px; border: none; background: none; cursor: pointer; padding: 0; }
+        .px-reset { font-size: 10px; color: #888; background: none; border: 1px solid #555; border-radius: 4px; cursor: pointer; padding: 2px 5px; margin-top: 3px; }
     </style>
 </head>
 <body>
@@ -50,6 +68,7 @@
         <div class="mode-switch">
             <button id="mode-assets" class="active" onclick="switchMode('assets')">Assets & Docs</button>
             <button id="mode-links" onclick="switchMode('links')">External Links</button>
+            <button id="mode-pixel" onclick="switchMode('pixel')">Pixel Indexer</button>
         </div>
         <div id="status" style="font-size:10px; color:#888;">Standby</div>
         <div id="asset-tools">
@@ -73,6 +92,21 @@
 </header>
 
 <div id="catalog-container"></div>
+
+<div id="pixel-panel">
+    <div class="px-canvas-wrap"><div id="pixel-app-container"></div></div>
+    <div class="px-ui">
+        <input type="file" id="px-file" accept="image/*" style="margin-bottom:12px; width:100%; color:#eee;">
+        <div class="px-switch">
+            <label><input type="checkbox" id="px-dither" checked> Dithering ON</label>
+            <label>Zoom: <input type="range" id="px-zoom" min="1" max="5" step="0.1" value="1" style="width:90px;"> <span id="px-zoom-val">100%</span></label>
+        </div>
+        <div class="px-row"><label>Pixel Size</label><input type="range" id="px-grid" min="2" max="60" value="10"><span class="px-val" id="px-grid-val">10</span></div>
+        <div class="px-row"><label>Color Steps</label><input type="range" id="px-color" min="1" max="128" value="32"><span class="px-val" id="px-color-val">32</span></div>
+        <div class="px-palette" id="px-palette"></div>
+    </div>
+</div>
+
 <div id="toast">コピーしました！</div>
 
 <script>
@@ -86,21 +120,30 @@
     let linkData = [];
 
     async function init() {
+        const tab = new URLSearchParams(location.search).get('tab') || 'assets';
         await loadAssetList();
-        refreshView();
+        switchMode(tab);
     }
 
-    async function switchMode(mode) {
+    function switchMode(mode) {
         currentMode = mode;
-        document.getElementById('mode-assets').className = (mode === 'assets' ? 'active' : '');
-        document.getElementById('mode-links').className = (mode === 'links' ? 'active' : '');
+        ['assets','links','pixel'].forEach(m => {
+            document.getElementById('mode-' + m).className = (m === mode ? 'active' : '');
+        });
         document.getElementById('asset-tools').style.display = (mode === 'assets' ? 'flex' : 'none');
-        refreshView();
+        document.getElementById('catalog-container').style.display = (mode === 'pixel' ? 'none' : 'block');
+        document.getElementById('pixel-panel').classList.toggle('active', mode === 'pixel');
+        // controls行はpixelタブでは不要なので隠す
+        document.querySelector('.controls').style.display = (mode === 'pixel' ? 'none' : 'flex');
+        history.replaceState(null, '', '?tab=' + mode);
+        if (mode === 'pixel') initPixel();
+        else if (mode === 'assets') renderAssets(assetData);
+        else loadLinkData().then(() => renderLinks(linkData));
     }
 
     function refreshView() {
         if (currentMode === 'assets') renderAssets(assetData);
-        else loadLinkData().then(() => renderLinks(linkData));
+        else if (currentMode === 'links') loadLinkData().then(() => renderLinks(linkData));
     }
 
     async function loadAssetList() {
@@ -307,6 +350,150 @@
         if (assetData.length === 0) return alert("データがありません");
         const blob = new Blob([JSON.stringify(assetData, null, 2)], {type: 'application/json'});
         const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'list.json'; a.click();
+    }
+
+    // ---- Pixel Indexer ----
+    let pixelApp = null;
+    let p5Loaded = false;
+
+    function toHexStr(r, g, b) {
+        return '#' + [r,g,b].map(v => Math.max(0,Math.min(255,v|0)).toString(16).padStart(2,'0')).join('');
+    }
+
+    function initPixel() {
+        if (pixelApp) return; // 初期化済み
+        if (!p5Loaded) {
+            const s = document.createElement('script');
+            s.src = 'https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js';
+            s.onload = () => { p5Loaded = true; _buildPixelApp(); };
+            document.head.appendChild(s);
+        } else {
+            _buildPixelApp();
+        }
+    }
+
+    function _buildPixelApp() {
+        const container = document.getElementById('pixel-app-container');
+        pixelApp = new p5(function(p) {
+            let rawImg = null, selectedHex = null, swapMap = {};
+            let gridSize = 10, quantizeStep = 32, useDither = true;
+
+            p.setup = () => {
+                const w = container.parentElement.clientWidth || 640;
+                p.createCanvas(w, 400);
+                p.noLoop();
+                // ResizeObserver でキャンバス幅を追従
+                new ResizeObserver(() => {
+                    const nw = container.parentElement.clientWidth;
+                    if (nw > 0 && nw !== p.width) { p.resizeCanvas(nw, p.height); p.redraw(); }
+                }).observe(container.parentElement);
+            };
+
+            p.draw = () => {
+                if (!rawImg) { p.background(25); return; }
+                const drawW = p.width;
+                const drawH = p.floor(drawW / (rawImg.width / rawImg.height));
+                if (p.height !== drawH) { p.resizeCanvas(drawW, drawH); p.redraw(); return; }
+                p.background(0);
+                const cols = p.floor(drawW / gridSize);
+                const rows = p.floor(drawH / gridSize);
+                const temp = rawImg.get(); temp.resize(cols, rows); temp.loadPixels();
+                const buf = new Float32Array(temp.pixels.length);
+                for (let i = 0; i < temp.pixels.length; i++) buf[i] = temp.pixels[i];
+                const qs = quantizeStep;
+                const qt = v => Math.max(0, Math.min(255, Math.round(v/qs)*qs));
+                if (useDither) {
+                    for (let y = 0; y < rows; y++) for (let x = 0; x < cols; x++) {
+                        const i = (x + y*cols)*4;
+                        const nr=qt(buf[i]), ng=qt(buf[i+1]), nb=qt(buf[i+2]);
+                        const er=buf[i]-nr, eg=buf[i+1]-ng, eb=buf[i+2]-nb;
+                        buf[i]=nr; buf[i+1]=ng; buf[i+2]=nb;
+                        sp(buf,x+1,y,  cols,rows,er,eg,eb,7/16);
+                        sp(buf,x-1,y+1,cols,rows,er,eg,eb,3/16);
+                        sp(buf,x,  y+1,cols,rows,er,eg,eb,5/16);
+                        sp(buf,x+1,y+1,cols,rows,er,eg,eb,1/16);
+                    }
+                } else {
+                    for (let i=0;i<buf.length;i+=4){buf[i]=qt(buf[i]);buf[i+1]=qt(buf[i+1]);buf[i+2]=qt(buf[i+2]);}
+                }
+                const paletteSet = new Set();
+                p.noStroke();
+                for (let y=0;y<rows;y++) for (let x=0;x<cols;x++) {
+                    const i=(x+y*cols)*4;
+                    const oh = toHexStr(buf[i],buf[i+1],buf[i+2]);
+                    const dh = swapMap[oh]||oh;
+                    paletteSet.add(dh);
+                    const isMatch = !selectedHex || dh===selectedHex;
+                    const dc = p.color(dh);
+                    p.fill(isMatch ? dc : p.color(p.red(dc)*.2,p.green(dc)*.2,p.blue(dc)*.2));
+                    p.rect(x*gridSize, y*gridSize, gridSize, gridSize);
+                }
+                const sorted = Array.from(paletteSet).sort((a,b)=>lum(p,b)-lum(p,a));
+                if (selectedHex && gridSize>8) {
+                    const si = sorted.indexOf(selectedHex);
+                    p.textAlign(p.CENTER,p.CENTER); p.textSize(gridSize*.6);
+                    for (let y=0;y<rows;y++) for (let x=0;x<cols;x++) {
+                        const i=(x+y*cols)*4;
+                        const dh=swapMap[toHexStr(buf[i],buf[i+1],buf[i+2])]||toHexStr(buf[i],buf[i+1],buf[i+2]);
+                        if (dh===selectedHex){p.fill(lum(p,dh)>128?0:255);p.text(si,x*gridSize+gridSize/2,y*gridSize+gridSize/2);}
+                    }
+                }
+                renderPxPalette(sorted, selectedHex, swapMap);
+            };
+
+            function sp(buf,x,y,cols,rows,er,eg,eb,w){
+                if(x<0||x>=cols||y>=rows)return;
+                const i=(x+y*cols)*4; buf[i]+=er*w;buf[i+1]+=eg*w;buf[i+2]+=eb*w;
+            }
+            function lum(p,h){const c=p.color(h);return .299*p.red(c)+.587*p.green(c)+.114*p.blue(c);}
+
+            // 外部から呼ぶ口
+            p.setImage  = url => p.loadImage(url, img=>{rawImg=img; p.redraw();});
+            p.pxUpdate  = (gs,qs,dt) => {gridSize=gs;quantizeStep=qs;useDither=dt;p.redraw();};
+            p.highlight = hv => {selectedHex=(selectedHex===hv?null:hv);p.redraw();};
+            p.swap      = (from,to) => {if(from===to)delete swapMap[from];else swapMap[from]=to;p.redraw();};
+            p.resetSwap = hv => {delete swapMap[hv];p.redraw();};
+            p.getSwapMap= () => swapMap;
+        }, container);
+
+        // コントロールのイベント
+        const pxUpdate = () => {
+            const gs=parseInt(document.getElementById('px-grid').value);
+            const qs=parseInt(document.getElementById('px-color').value);
+            const dt=document.getElementById('px-dither').checked;
+            document.getElementById('px-grid-val').innerText=gs;
+            document.getElementById('px-color-val').innerText=qs;
+            pixelApp.pxUpdate(gs,qs,dt);
+        };
+        document.getElementById('px-grid').oninput=pxUpdate;
+        document.getElementById('px-color').oninput=pxUpdate;
+        document.getElementById('px-dither').onchange=pxUpdate;
+        document.getElementById('px-zoom').oninput=()=>{
+            const v=document.getElementById('px-zoom').value;
+            document.getElementById('pixel-app-container').style.transform=`scale(${v})`;
+            document.getElementById('px-zoom-val').innerText=Math.round(v*100)+'%';
+        };
+        document.getElementById('px-file').onchange=e=>{
+            const r=new FileReader();
+            r.onload=ev=>pixelApp.setImage(ev.target.result);
+            r.readAsDataURL(e.target.files[0]);
+        };
+    }
+
+    function renderPxPalette(palette, selectedHex, swapMap) {
+        const div = document.getElementById('px-palette');
+        div.innerHTML='';
+        palette.forEach((hv,i)=>{
+            const sw=swapMap[hv], disp=sw||hv;
+            const chip=document.createElement('div');
+            chip.className='px-chip'+(selectedHex===hv?' active':'');
+            chip.innerHTML=`<div class="px-box" style="background:${disp}"></div><b>#${i}</b><br><input type="color" value="${disp}">${sw?`<br><button class="px-reset" data-h="${hv}">↩</button>`:''}`;
+            chip.querySelector('.px-box').onclick=()=>pixelApp.highlight(hv);
+            chip.querySelector('input[type="color"]').oninput=e=>pixelApp.swap(hv,e.target.value);
+            const rb=chip.querySelector('.px-reset');
+            if(rb) rb.onclick=e=>{e.stopPropagation();pixelApp.resetSwap(hv);};
+            div.appendChild(chip);
+        });
     }
 
     init();

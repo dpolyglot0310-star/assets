@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>Pixel Indexer - Dithering Edition</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+    <style>
+        body { font-family: sans-serif; background: #121212; color: #eee; display: flex; flex-direction: column; align-items: center; padding: 20px; }
+        .canvas-wrapper { border: 2px solid #444; background: #000; margin-bottom: 10px; overflow: auto; max-width: 95vw; max-height: 60vh; }
+        #pixel-app-container { line-height: 0; transform-origin: 0 0; }
+        .ui-panel { background: #1e1e1e; padding: 20px; border-radius: 12px; width: 700px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+        .control-group { margin-bottom: 12px; display: flex; align-items: center; gap: 15px; }
+        .control-group label { width: 160px; font-size: 0.8em; color: #aaa; }
+        .val-disp { width: 50px; text-align: right; font-family: monospace; color: #00ffcc; }
+        input[type="range"] { flex-grow: 1; cursor: pointer; }
+        .palette-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); gap: 10px; border-top: 1px solid #333; padding-top: 15px; margin-top: 15px; }
+        .color-chip { background: #2a2a2a; padding: 8px; border-radius: 6px; text-align: center; font-size: 11px; border: 2px solid #333; cursor: pointer; }
+        .color-chip.active { border-color: #00ffcc; background: #333; }
+        .color-box { width: 100%; height: 30px; border-radius: 4px; margin-bottom: 4px; border: 1px solid rgba(255,255,255,0.1); }
+        .color-chip input[type="color"] { width: 100%; height: 22px; border: none; background: none; cursor: pointer; padding: 0; }
+        .switch-group { background: #2a2a2a; padding: 10px; border-radius: 6px; margin-bottom: 15px; display: flex; gap: 20px; font-size: 0.9em; }
+        .btn-reset { font-size: 10px; color: #888; background: none; border: 1px solid #555; border-radius: 4px; cursor: pointer; padding: 2px 6px; margin-top: 4px; }
+        .btn-reset:hover { color: #fff; border-color: #aaa; }
+    </style>
+</head>
+<body>
+
+    <h2>Pixel Indexer: Dithering Mode</h2>
+    
+    <div class="canvas-wrapper">
+        <div id="pixel-app-container"></div>
+    </div>
+
+    <div class="ui-panel">
+        <input type="file" id="fileInput" accept="image/*" style="margin-bottom:15px; width:100%;">
+        
+        <div class="switch-group">
+            <label><input type="checkbox" id="ditherCheck" checked> Dithering (誤差拡散) ON</label>
+            <label>Zoom: <input type="range" id="zoomRange" min="1" max="5" step="0.1" value="1" style="width:100px;"> <span id="zoomVal">100%</span></label>
+        </div>
+
+        <div class="control-group">
+            <label>Pixel Size (マス目)</label>
+            <input type="range" id="gridRange" min="2" max="60" value="10">
+            <span id="gridVal" class="val-disp">10</span>
+        </div>
+
+        <div class="control-group">
+            <label>Color Steps (減色)</label>
+            <input type="range" id="colorRange" min="1" max="128" value="32">
+            <span id="colorVal" class="val-disp">32</span>
+        </div>
+        
+        <div id="palette" class="palette-grid"></div>
+    </div>
+
+    <script>
+    // RGB配列 → "#rrggbb" 文字列（p5のhex()関数と衝突しない独立関数）
+    function toHexStr(r, g, b) {
+        return '#' + [r, g, b].map(v => Math.max(0, Math.min(255, v | 0)).toString(16).padStart(2, '0')).join('');
+    }
+
+    class DotConverter {
+        constructor(containerId, onDataUpdate) {
+            this.containerId = containerId;
+            this.gridSize = 10;
+            this.quantizeStep = 32;
+            this.useDither = true;
+            this.rawImg = null;
+            this.selectedHex = null;
+            this.swapMap = {};          // { originalHex: replacedHex } — 設定変更後も維持
+            this.onDataUpdate = onDataUpdate;
+            this.instance = new p5(this._sketch.bind(this), this.containerId);
+        }
+
+        _sketch(p) {
+            p.setup = () => { p.createCanvas(640, 400); p.noLoop(); };
+
+            p.draw = () => {
+                if (!this.rawImg) { p.background(25); return; }
+
+                const ratio = this.rawImg.width / this.rawImg.height;
+                const drawW = 640;
+                const drawH = p.floor(drawW / ratio);
+
+                // キャンバスサイズが違う場合はリサイズして即再描画
+                if (p.height !== drawH) {
+                    p.resizeCanvas(drawW, drawH);
+                    p.redraw();
+                    return;
+                }
+
+                p.background(0);
+
+                const cols = p.floor(p.width / this.gridSize);
+                const rows = p.floor(drawH / this.gridSize);
+
+                // 元画像をグリッド解像度にリサイズ
+                const temp = this.rawImg.get();
+                temp.resize(cols, rows);
+                temp.loadPixels();
+
+                // 減色バッファ（Float32で誤差を保持）
+                const buf = new Float32Array(temp.pixels.length);
+                for (let i = 0; i < temp.pixels.length; i++) buf[i] = temp.pixels[i];
+
+                const qs = this.quantizeStep;
+                const quantize = v => Math.max(0, Math.min(255, Math.round(v / qs) * qs));
+
+                if (this.useDither) {
+                    for (let y = 0; y < rows; y++) {
+                        for (let x = 0; x < cols; x++) {
+                            const i = (x + y * cols) * 4;
+                            const nr = quantize(buf[i]);
+                            const ng = quantize(buf[i+1]);
+                            const nb = quantize(buf[i+2]);
+                            const er = buf[i]   - nr;
+                            const eg = buf[i+1] - ng;
+                            const eb = buf[i+2] - nb;
+                            buf[i] = nr; buf[i+1] = ng; buf[i+2] = nb;
+                            this._spread(buf, x+1, y,   cols, rows, er, eg, eb, 7/16);
+                            this._spread(buf, x-1, y+1, cols, rows, er, eg, eb, 3/16);
+                            this._spread(buf, x,   y+1, cols, rows, er, eg, eb, 5/16);
+                            this._spread(buf, x+1, y+1, cols, rows, er, eg, eb, 1/16);
+                        }
+                    }
+                } else {
+                    for (let i = 0; i < buf.length; i += 4) {
+                        buf[i]   = quantize(buf[i]);
+                        buf[i+1] = quantize(buf[i+1]);
+                        buf[i+2] = quantize(buf[i+2]);
+                    }
+                }
+
+                // パレット集計（swapMap適用後の色で集計）
+                const paletteSet = new Set();
+                p.noStroke();
+
+                for (let y = 0; y < rows; y++) {
+                    for (let x = 0; x < cols; x++) {
+                        const i = (x + y * cols) * 4;
+                        const origHex = toHexStr(buf[i], buf[i+1], buf[i+2]);
+                        const drawHex = this.swapMap[origHex] || origHex;
+                        paletteSet.add(drawHex);
+
+                        const isMatch = (this.selectedHex === null || drawHex === this.selectedHex);
+                        const dc = p.color(drawHex);
+                        p.fill(isMatch ? dc : p.color(p.red(dc)*0.2, p.green(dc)*0.2, p.blue(dc)*0.2));
+                        p.rect(x * this.gridSize, y * this.gridSize, this.gridSize, this.gridSize);
+                    }
+                }
+
+                // インデックス番号表示（ハイライト時）
+                const sortedPalette = Array.from(paletteSet).sort((a, b) => this._lum(p, b) - this._lum(p, a));
+                if (this.selectedHex && this.gridSize > 8) {
+                    const selIdx = sortedPalette.indexOf(this.selectedHex);
+                    p.textAlign(p.CENTER, p.CENTER);
+                    p.textSize(this.gridSize * 0.6);
+                    for (let y = 0; y < rows; y++) {
+                        for (let x = 0; x < cols; x++) {
+                            const i = (x + y * cols) * 4;
+                            const origHex = toHexStr(buf[i], buf[i+1], buf[i+2]);
+                            const drawHex = this.swapMap[origHex] || origHex;
+                            if (drawHex === this.selectedHex) {
+                                p.fill(this._lum(p, drawHex) > 128 ? 0 : 255);
+                                p.text(selIdx, x * this.gridSize + this.gridSize / 2, y * this.gridSize + this.gridSize / 2);
+                            }
+                        }
+                    }
+                }
+
+                if (this.onDataUpdate) this.onDataUpdate(sortedPalette);
+            };
+
+            // p5インスタンス外から呼ぶメソッドをここで定義
+            this.setImage = (dataUrl) => {
+                p.loadImage(dataUrl, img => { this.rawImg = img; p.redraw(); });
+            };
+            this.update = (gs, qs, dither) => {
+                this.gridSize = gs; this.quantizeStep = qs; this.useDither = dither;
+                p.redraw();
+            };
+            this.highlightColor = (hexVal) => {
+                this.selectedHex = (this.selectedHex === hexVal) ? null : hexVal;
+                p.redraw();
+            };
+            this.swapColor = (fromHex, toHex) => {
+                if (fromHex === toHex) {
+                    delete this.swapMap[fromHex];
+                } else {
+                    this.swapMap[fromHex] = toHex;
+                }
+                p.redraw();
+            };
+            this.resetSwap = (hexVal) => {
+                delete this.swapMap[hexVal];
+                p.redraw();
+            };
+        }
+
+        _spread(buf, x, y, cols, rows, er, eg, eb, w) {
+            if (x < 0 || x >= cols || y >= rows) return;
+            const i = (x + y * cols) * 4;
+            buf[i]   += er * w;
+            buf[i+1] += eg * w;
+            buf[i+2] += eb * w;
+        }
+        _lum(p, h) { const c = p.color(h); return 0.299*p.red(c) + 0.587*p.green(c) + 0.114*p.blue(c); }
+    }
+
+    window.onload = () => {
+        const app = new DotConverter('pixel-app-container', (palette) => {
+            const div = document.getElementById('palette');
+            div.innerHTML = '';
+            palette.forEach((hexVal, i) => {
+                const swapped = app.swapMap[hexVal];
+                const chip = document.createElement('div');
+                chip.className = 'color-chip' + (app.selectedHex === hexVal ? ' active' : '');
+
+                // 表示色（置換後があればそちら）
+                const displayHex = swapped || hexVal;
+
+                chip.innerHTML = `
+                    <div class="color-box" style="background:${displayHex}"></div>
+                    <b>#${i}</b><br>
+                    <input type="color" title="色を置換" value="${displayHex}">
+                    ${swapped ? `<br><button class="btn-reset" data-hex="${hexVal}">↩ reset</button>` : ''}
+                `;
+
+                // ハイライト（色ボックスクリック）
+                chip.querySelector('.color-box').onclick = () => app.highlightColor(hexVal);
+
+                // 色置換
+                chip.querySelector('input[type="color"]').oninput = (e) => {
+                    app.swapColor(hexVal, e.target.value);
+                };
+
+                // リセット
+                const resetBtn = chip.querySelector('.btn-reset');
+                if (resetBtn) resetBtn.onclick = (e) => { e.stopPropagation(); app.resetSwap(hexVal); };
+
+                div.appendChild(chip);
+            });
+        });
+
+        const update = () => {
+            const gs = parseInt(document.getElementById('gridRange').value);
+            const qs = parseInt(document.getElementById('colorRange').value);
+            const dt = document.getElementById('ditherCheck').checked;
+            document.getElementById('gridVal').innerText = gs;
+            document.getElementById('colorVal').innerText = qs;
+            app.update(gs, qs, dt);
+        };
+
+        document.getElementById('gridRange').oninput = update;
+        document.getElementById('colorRange').oninput = update;
+        document.getElementById('ditherCheck').onchange = update;
+
+        const zoomSld = document.getElementById('zoomRange');
+        zoomSld.oninput = () => {
+            document.getElementById('pixel-app-container').style.transform = `scale(${zoomSld.value})`;
+            document.getElementById('zoomVal').innerText = Math.round(zoomSld.value * 100) + '%';
+        };
+
+        document.getElementById('fileInput').onchange = (e) => {
+            const reader = new FileReader();
+            reader.onload = (ev) => app.setImage(ev.target.result);
+            reader.readAsDataURL(e.target.files[0]);
+        };
+    };
+    </script>
+</body>
+</html>
