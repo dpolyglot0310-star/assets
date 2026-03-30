@@ -99,10 +99,13 @@
         <input type="file" id="px-file" accept="image/*" style="margin-bottom:12px; width:100%; color:#eee;">
         <div class="px-switch">
             <label><input type="checkbox" id="px-dither" checked> Dithering ON</label>
+            <label><input type="checkbox" id="px-raw"> Raw (色変換なし)</label>
+            <label>BG: <input type="color" id="px-bg" value="#000000" style="width:36px;height:22px;padding:0;border:none;cursor:pointer;"></label>
             <label>Zoom: <input type="range" id="px-zoom" min="1" max="5" step="0.1" value="1" style="width:90px;"> <span id="px-zoom-val">100%</span></label>
         </div>
         <div class="px-row"><label>Pixel Size</label><input type="range" id="px-grid" min="2" max="60" value="10"><span class="px-val" id="px-grid-val">10</span></div>
         <div class="px-row"><label>Color Steps</label><input type="range" id="px-color" min="1" max="128" value="32"><span class="px-val" id="px-color-val">32</span></div>
+        <div class="px-row"><label>Max Size (px)</label><input type="number" id="px-maxpx" value="0" min="0" step="1" style="width:70px;background:#2a2a2a;color:#eee;border:1px solid #444;border-radius:4px;padding:3px 6px;"><span style="font-size:11px;color:#666;margin-left:4px;">0=無制限</span></div>
         <div class="px-palette" id="px-palette"></div>
     </div>
 </div>
@@ -376,7 +379,7 @@
         const container = document.getElementById('pixel-app-container');
         pixelApp = new p5(function(p) {
             let rawImg = null, selectedHex = null, swapMap = {};
-            let gridSize = 10, quantizeStep = 32, useDither = true;
+            let gridSize = 10, quantizeStep = 32, useDither = true, rawMode = false, bgColor = '#000000';
 
             p.setup = () => {
                 const w = container.parentElement.clientWidth || 640;
@@ -394,27 +397,29 @@
                 const drawW = p.width;
                 const drawH = p.floor(drawW / (rawImg.width / rawImg.height));
                 if (p.height !== drawH) { p.resizeCanvas(drawW, drawH); p.redraw(); return; }
-                p.background(0);
+                p.background(bgColor);
                 const cols = p.floor(drawW / gridSize);
                 const rows = p.floor(drawH / gridSize);
                 const temp = rawImg.get(); temp.resize(cols, rows); temp.loadPixels();
                 const buf = new Float32Array(temp.pixels.length);
                 for (let i = 0; i < temp.pixels.length; i++) buf[i] = temp.pixels[i];
-                const qs = quantizeStep;
-                const qt = v => Math.max(0, Math.min(255, Math.round(v/qs)*qs));
-                if (useDither) {
-                    for (let y = 0; y < rows; y++) for (let x = 0; x < cols; x++) {
-                        const i = (x + y*cols)*4;
-                        const nr=qt(buf[i]), ng=qt(buf[i+1]), nb=qt(buf[i+2]);
-                        const er=buf[i]-nr, eg=buf[i+1]-ng, eb=buf[i+2]-nb;
-                        buf[i]=nr; buf[i+1]=ng; buf[i+2]=nb;
-                        sp(buf,x+1,y,  cols,rows,er,eg,eb,7/16);
-                        sp(buf,x-1,y+1,cols,rows,er,eg,eb,3/16);
-                        sp(buf,x,  y+1,cols,rows,er,eg,eb,5/16);
-                        sp(buf,x+1,y+1,cols,rows,er,eg,eb,1/16);
+                if (!rawMode) {
+                    const qs = quantizeStep;
+                    const qt = v => Math.max(0, Math.min(255, Math.round(v/qs)*qs));
+                    if (useDither) {
+                        for (let y = 0; y < rows; y++) for (let x = 0; x < cols; x++) {
+                            const i = (x + y*cols)*4;
+                            const nr=qt(buf[i]), ng=qt(buf[i+1]), nb=qt(buf[i+2]);
+                            const er=buf[i]-nr, eg=buf[i+1]-ng, eb=buf[i+2]-nb;
+                            buf[i]=nr; buf[i+1]=ng; buf[i+2]=nb;
+                            sp(buf,x+1,y,  cols,rows,er,eg,eb,7/16);
+                            sp(buf,x-1,y+1,cols,rows,er,eg,eb,3/16);
+                            sp(buf,x,  y+1,cols,rows,er,eg,eb,5/16);
+                            sp(buf,x+1,y+1,cols,rows,er,eg,eb,1/16);
+                        }
+                    } else {
+                        for (let i=0;i<buf.length;i+=4){buf[i]=qt(buf[i]);buf[i+1]=qt(buf[i+1]);buf[i+2]=qt(buf[i+2]);}
                     }
-                } else {
-                    for (let i=0;i<buf.length;i+=4){buf[i]=qt(buf[i]);buf[i+1]=qt(buf[i+1]);buf[i+2]=qt(buf[i+2]);}
                 }
                 const paletteSet = new Set();
                 p.noStroke();
@@ -448,8 +453,14 @@
             function lum(p,h){const c=p.color(h);return .299*p.red(c)+.587*p.green(c)+.114*p.blue(c);}
 
             // 外部から呼ぶ口
-            p.setImage  = url => p.loadImage(url, img=>{rawImg=img; p.redraw();});
-            p.pxUpdate  = (gs,qs,dt) => {gridSize=gs;quantizeStep=qs;useDither=dt;p.redraw();};
+            p.setImage = (url, maxPx) => p.loadImage(url, img => {
+                if (maxPx > 0 && (img.width > maxPx || img.height > maxPx)) {
+                    const s = maxPx / Math.max(img.width, img.height);
+                    img.resize(Math.round(img.width*s), Math.round(img.height*s));
+                }
+                rawImg = img; p.redraw();
+            });
+            p.pxUpdate = (gs,qs,dt,rm,bg) => { gridSize=gs; quantizeStep=qs; useDither=dt; rawMode=rm; bgColor=bg; p.redraw(); };
             p.highlight = hv => {selectedHex=(selectedHex===hv?null:hv);p.redraw();};
             p.swap      = (from,to) => {if(from===to)delete swapMap[from];else swapMap[from]=to;p.redraw();};
             p.resetSwap = hv => {delete swapMap[hv];p.redraw();};
@@ -461,13 +472,18 @@
             const gs=parseInt(document.getElementById('px-grid').value);
             const qs=parseInt(document.getElementById('px-color').value);
             const dt=document.getElementById('px-dither').checked;
+            const rm=document.getElementById('px-raw').checked;
+            const bg=document.getElementById('px-bg').value;
             document.getElementById('px-grid-val').innerText=gs;
             document.getElementById('px-color-val').innerText=qs;
-            pixelApp.pxUpdate(gs,qs,dt);
+            ['px-dither','px-grid','px-color'].forEach(id=>document.getElementById(id).disabled=rm);
+            pixelApp.pxUpdate(gs,qs,dt,rm,bg);
         };
         document.getElementById('px-grid').oninput=pxUpdate;
         document.getElementById('px-color').oninput=pxUpdate;
         document.getElementById('px-dither').onchange=pxUpdate;
+        document.getElementById('px-raw').onchange=pxUpdate;
+        document.getElementById('px-bg').oninput=pxUpdate;
         document.getElementById('px-zoom').oninput=()=>{
             const v=document.getElementById('px-zoom').value;
             document.getElementById('pixel-app-container').style.transform=`scale(${v})`;
@@ -475,7 +491,7 @@
         };
         document.getElementById('px-file').onchange=e=>{
             const r=new FileReader();
-            r.onload=ev=>pixelApp.setImage(ev.target.result);
+            r.onload=ev=>pixelApp.setImage(ev.target.result, parseInt(document.getElementById('px-maxpx').value)||0);
             r.readAsDataURL(e.target.files[0]);
         };
     }
