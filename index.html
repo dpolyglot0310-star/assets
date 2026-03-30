@@ -71,7 +71,7 @@
 <header>
     <div class="header-top">
         <div class="mode-switch">
-            <button id="mode-assets" class="active" onclick="switchMode('assets')">Assets & Docs</button>
+            <button id="mode-assets" onclick="switchMode('assets')">Assets & Docs</button>
             <button id="mode-links" onclick="switchMode('links')">External Links</button>
             <button id="mode-pixel" onclick="switchMode('pixel')">Pixel Indexer</button>
         </div>
@@ -96,7 +96,7 @@
     </div>
 </header>
 
-<div id="catalog-container"></div>
+<div id="catalog-container" style="display:none;"></div>
 
 <div id="pixel-panel">
     <div class="px-canvas-wrap"><div id="pixel-app-container"></div></div>
@@ -138,17 +138,19 @@
     const BASE_PATH = 'assets';
     const IGNORE_DIRS = ['backup', 'old', 'temp'];
 
-    let currentMode = 'assets';
+    let currentMode = null;
     let assetData = [];
     let linkData = [];
 
     async function init() {
-        const tab = new URLSearchParams(location.search).get('tab') || 'assets';
         await loadAssetList();
-        switchMode(tab);
+        const tab = new URLSearchParams(location.search).get('tab');
+        if (tab) switchMode(tab);
+        // tab指定なし → 何も表示しない（タブボタンだけ表示）
     }
 
     function switchMode(mode) {
+        if (currentMode === mode) return;
         currentMode = mode;
         ['assets','links','pixel'].forEach(m => {
             document.getElementById('mode-' + m).className = (m === mode ? 'active' : '');
@@ -156,7 +158,6 @@
         document.getElementById('asset-tools').style.display = (mode === 'assets' ? 'flex' : 'none');
         document.getElementById('catalog-container').style.display = (mode === 'pixel' ? 'none' : 'block');
         document.getElementById('pixel-panel').classList.toggle('active', mode === 'pixel');
-        // controls行はpixelタブでは不要なので隠す
         document.querySelector('.controls').style.display = (mode === 'pixel' ? 'none' : 'flex');
         history.replaceState(null, '', '?tab=' + mode);
         if (mode === 'pixel') initPixel();
@@ -165,6 +166,7 @@
     }
 
     function refreshView() {
+        if (!currentMode) return;
         if (currentMode === 'assets') renderAssets(assetData);
         else if (currentMode === 'links') loadLinkData().then(() => renderLinks(linkData));
     }
@@ -416,63 +418,64 @@
             let sourceImg = null, rawImg = null, selectedHex = null, swapMap = {};
             let gridSize = 10, quantizeStep = 32, useDither = true, rawMode = false, bgColor = '#000000';
             let gridLine = false, gridLineColor = '#333333', gridLineWeight = 1;
-            // クロップ選択用
             let cropMode = false, cropDone = false;
-            let cx0=0,cy0=0,cx1=0,cy1=0, dragging=false;
+            let cx0=0, cy0=0, cx1=0, cy1=0, dragging=false;
 
             p.setup = () => {
                 const w = container.parentElement.clientWidth || 640;
                 p.createCanvas(w, 400);
                 p.noLoop();
-                // ResizeObserver でキャンバス幅を追従
                 new ResizeObserver(() => {
                     const nw = container.parentElement.clientWidth;
                     if (nw > 0 && nw !== p.width) { p.resizeCanvas(nw, p.height); p.redraw(); }
                 }).observe(container.parentElement);
+                // クロップ用マウスイベント（p.canvas確定後に登録）
+                const getPos = (e) => {
+                    const rect = p.canvas.getBoundingClientRect();
+                    const zoom = rect.width / p.canvas.offsetWidth || 1;
+                    const cx = e.touches ? e.touches[0].clientX : e.clientX;
+                    const cy = e.touches ? e.touches[0].clientY : e.clientY;
+                    return { x: Math.max(0, Math.min(p.width, (cx-rect.left)/zoom)), y: Math.max(0, Math.min(p.height, (cy-rect.top)/zoom)) };
+                };
+                p.canvas.addEventListener('mousedown',  (e) => { if (!cropMode) return; e.preventDefault(); const pos=getPos(e); cx0=pos.x; cy0=pos.y; cx1=pos.x; cy1=pos.y; dragging=true; cropDone=false; p.redraw(); });
+                p.canvas.addEventListener('mousemove',  (e) => { if (!cropMode||!dragging) return; e.preventDefault(); const pos=getPos(e); cx1=pos.x; cy1=pos.y; p.redraw(); });
+                p.canvas.addEventListener('mouseup',    ()  => { if (!cropMode||!dragging) return; dragging=false; cropDone=true; p.redraw(); });
+                p.canvas.addEventListener('touchstart', (e) => { if (!cropMode) return; e.preventDefault(); const pos=getPos(e); cx0=pos.x; cy0=pos.y; cx1=pos.x; cy1=pos.y; dragging=true; cropDone=false; p.redraw(); }, {passive:false});
+                p.canvas.addEventListener('touchmove',  (e) => { if (!cropMode||!dragging) return; e.preventDefault(); const pos=getPos(e); cx1=pos.x; cy1=pos.y; p.redraw(); }, {passive:false});
+                p.canvas.addEventListener('touchend',   ()  => { if (!cropMode||!dragging) return; dragging=false; cropDone=true; p.redraw(); });
             };
 
             p.draw = () => {
                 if (!rawImg && !sourceImg) { p.background(25); return; }
-                // クロップモード：元画像を表示して選択矩形を描画
                 if (cropMode) {
-                    const drawW = p.width;
-                    const drawH = p.floor(drawW / (sourceImg.width / sourceImg.height));
-                    if (p.height !== drawH) { p.resizeCanvas(drawW, drawH); p.redraw(); return; }
+                    const dW=p.width, dH=p.floor(dW/(sourceImg.width/sourceImg.height));
+                    if (p.height!==dH) { p.resizeCanvas(dW,dH); p.redraw(); return; }
                     p.background(0);
-                    p.image(sourceImg, 0, 0, drawW, drawH);
-                    if (dragging || cropDone) {
-                        const rx=Math.min(cx0,cx1), ry=Math.min(cy0,cy1);
-                        const rw=Math.abs(cx1-cx0), rh=Math.abs(cy1-cy0);
-                        p.noFill(); p.stroke(255,80,0); p.strokeWeight(2);
-                        p.rect(rx,ry,rw,rh);
-                        // 選択外を半透明に
+                    p.image(sourceImg,0,0,dW,dH);
+                    if (dragging||cropDone) {
+                        const rx=Math.min(cx0,cx1), ry=Math.min(cy0,cy1), rw=Math.abs(cx1-cx0), rh=Math.abs(cy1-cy0);
                         p.fill(0,0,0,120); p.noStroke();
-                        p.rect(0,0,drawW,ry);
-                        p.rect(0,ry+rh,drawW,drawH-ry-rh);
-                        p.rect(0,ry,rx,rh);
-                        p.rect(rx+rw,ry,drawW-rx-rw,rh);
+                        p.rect(0,0,dW,ry); p.rect(0,ry+rh,dW,dH-ry-rh); p.rect(0,ry,rx,rh); p.rect(rx+rw,ry,dW-rx-rw,rh);
+                        p.noFill(); p.stroke(255,80,0); p.strokeWeight(2); p.rect(rx,ry,rw,rh);
                     }
                     return;
                 }
                 if (!rawImg) { p.background(25); return; }
-                const drawW = p.width;
-                const drawH = p.floor(drawW / (rawImg.width / rawImg.height));
-                if (p.height !== drawH) { p.resizeCanvas(drawW, drawH); p.redraw(); return; }
+                const drawW=p.width, drawH=p.floor(drawW/(rawImg.width/rawImg.height));
+                if (p.height!==drawH) { p.resizeCanvas(drawW,drawH); p.redraw(); return; }
                 p.background(bgColor);
-                const cols = p.floor(drawW / gridSize);
-                const rows = p.floor(drawH / gridSize);
-                const temp = rawImg.get(); temp.resize(cols, rows); temp.loadPixels();
-                const buf = new Float32Array(temp.pixels.length);
-                for (let i = 0; i < temp.pixels.length; i++) buf[i] = temp.pixels[i];
+                const cols=p.floor(drawW/gridSize), rows=p.floor(drawH/gridSize);
+                const temp=rawImg.get(); temp.resize(cols,rows); temp.loadPixels();
+                const buf=new Float32Array(temp.pixels.length);
+                for (let i=0;i<temp.pixels.length;i++) buf[i]=temp.pixels[i];
                 if (!rawMode) {
-                    const qs = quantizeStep;
-                    const qt = v => Math.max(0, Math.min(255, Math.round(v/qs)*qs));
+                    const qs=quantizeStep, qt=v=>Math.max(0,Math.min(255,Math.round(v/qs)*qs));
                     if (useDither) {
-                        for (let y = 0; y < rows; y++) for (let x = 0; x < cols; x++) {
-                            const i = (x + y*cols)*4;
-                            const nr=qt(buf[i]), ng=qt(buf[i+1]), nb=qt(buf[i+2]);
-                            const er=buf[i]-nr, eg=buf[i+1]-ng, eb=buf[i+2]-nb;
-                            buf[i]=nr; buf[i+1]=ng; buf[i+2]=nb;
+                        for (let y=0;y<rows;y++) for (let x=0;x<cols;x++) {
+                            const i=(x+y*cols)*4;
+                            const nr=qt(buf[i]),ng=qt(buf[i+1]),nb=qt(buf[i+2]);
+                            const er=buf[i]-nr,eg=buf[i+1]-ng,eb=buf[i+2]-nb;
+                            buf[i]=nr;buf[i+1]=ng;buf[i+2]=nb;
                             sp(buf,x+1,y,  cols,rows,er,eg,eb,7/16);
                             sp(buf,x-1,y+1,cols,rows,er,eg,eb,3/16);
                             sp(buf,x,  y+1,cols,rows,er,eg,eb,5/16);
@@ -482,121 +485,78 @@
                         for (let i=0;i<buf.length;i+=4){buf[i]=qt(buf[i]);buf[i+1]=qt(buf[i+1]);buf[i+2]=qt(buf[i+2]);}
                     }
                 }
-                const paletteSet = new Set();
-                if (gridLine) { p.stroke(gridLineColor); p.strokeWeight(gridLineWeight); } else { p.noStroke(); }
+                const paletteSet=new Set();
+                if (gridLine){p.stroke(gridLineColor);p.strokeWeight(gridLineWeight);}else{p.noStroke();}
                 for (let y=0;y<rows;y++) for (let x=0;x<cols;x++) {
                     const i=(x+y*cols)*4;
-                    const oh = toHexStr(buf[i],buf[i+1],buf[i+2]);
-                    const dh = swapMap[oh]||oh;
+                    const oh=toHexStr(buf[i],buf[i+1],buf[i+2]), dh=swapMap[oh]||oh;
                     paletteSet.add(dh);
-                    const isMatch = !selectedHex || dh===selectedHex;
-                    const dc = p.color(dh);
-                    p.fill(isMatch ? dc : p.color(p.red(dc)*.2,p.green(dc)*.2,p.blue(dc)*.2));
-                    p.rect(x*gridSize, y*gridSize, gridSize, gridSize);
+                    const dc=p.color(dh);
+                    p.fill(!selectedHex||dh===selectedHex ? dc : p.color(p.red(dc)*.2,p.green(dc)*.2,p.blue(dc)*.2));
+                    p.rect(x*gridSize,y*gridSize,gridSize,gridSize);
                 }
-                const sorted = Array.from(paletteSet).sort((a,b)=>lum(p,b)-lum(p,a));
-                if (selectedHex && gridSize>8) {
-                    const si = sorted.indexOf(selectedHex);
+                const sorted=Array.from(paletteSet).sort((a,b)=>lum(p,b)-lum(p,a));
+                if (selectedHex&&gridSize>8) {
+                    const si=sorted.indexOf(selectedHex);
                     p.textAlign(p.CENTER,p.CENTER); p.textSize(gridSize*.6);
                     for (let y=0;y<rows;y++) for (let x=0;x<cols;x++) {
-                        const i=(x+y*cols)*4;
-                        const dh=swapMap[toHexStr(buf[i],buf[i+1],buf[i+2])]||toHexStr(buf[i],buf[i+1],buf[i+2]);
+                        const i=(x+y*cols)*4, dh=swapMap[toHexStr(buf[i],buf[i+1],buf[i+2])]||toHexStr(buf[i],buf[i+1],buf[i+2]);
                         if (dh===selectedHex){p.fill(lum(p,dh)>128?0:255);p.text(si,x*gridSize+gridSize/2,y*gridSize+gridSize/2);}
                     }
                 }
-                renderPxPalette(sorted, selectedHex, swapMap);
+                renderPxPalette(sorted,selectedHex,swapMap);
             };
 
             function sp(buf,x,y,cols,rows,er,eg,eb,w){
                 if(x<0||x>=cols||y>=rows)return;
-                const i=(x+y*cols)*4; buf[i]+=er*w;buf[i+1]+=eg*w;buf[i+2]+=eb*w;
+                const i=(x+y*cols)*4;buf[i]+=er*w;buf[i+1]+=eg*w;buf[i+2]+=eb*w;
             }
             function lum(p,h){const c=p.color(h);return .299*p.red(c)+.587*p.green(c)+.114*p.blue(c);}
 
-            // マウス操作（クロップ選択）— p5のmouseX/Yはzoom/scroll非考慮なので生イベントで取る
-            const getCanvasPos = (e) => {
-                const cv = p.canvas;
-                const rect = cv.getBoundingClientRect();
-                const zoom = rect.width / cv.offsetWidth || 1;
-                const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-                const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-                return {
-                    x: Math.max(0, Math.min(p.width,  (clientX - rect.left) / zoom)),
-                    y: Math.max(0, Math.min(p.height, (clientY - rect.top)  / zoom))
-                };
-            };
-            const onDown = (e) => {
-                if (!cropMode) return;
-                e.preventDefault();
-                const pos = getCanvasPos(e);
-                cx0=pos.x; cy0=pos.y; cx1=pos.x; cy1=pos.y; dragging=true; cropDone=false;
-                p.redraw();
-            };
-            const onMove = (e) => {
-                if (!cropMode || !dragging) return;
-                e.preventDefault();
-                const pos = getCanvasPos(e);
-                cx1=pos.x; cy1=pos.y;
-                p.redraw();
-            };
-            const onUp = (e) => {
-                if (!cropMode || !dragging) return;
-                dragging=false; cropDone=true; p.redraw();
-            };
-            p.canvas.addEventListener('mousedown',  onDown);
-            p.canvas.addEventListener('mousemove',  onMove);
-            p.canvas.addEventListener('mouseup',    onUp);
-            p.canvas.addEventListener('touchstart', onDown, {passive:false});
-            p.canvas.addEventListener('touchmove',  onMove, {passive:false});
-            p.canvas.addEventListener('touchend',   onUp);
+            const wrap = () => document.getElementById('pixel-app-container').closest('.px-canvas-wrap');
 
-            // 外部から呼ぶ口
             p.setImage = (url, maxPx) => p.loadImage(url, img => {
-                if (maxPx > 0 && (img.width > maxPx || img.height > maxPx)) {
-                    const s = maxPx / Math.max(img.width, img.height);
-                    img.resize(Math.round(img.width*s), Math.round(img.height*s));
+                if (maxPx>0&&(img.width>maxPx||img.height>maxPx)) {
+                    const s=maxPx/Math.max(img.width,img.height);
+                    img.resize(Math.round(img.width*s),Math.round(img.height*s));
                 }
-                sourceImg = img; rawImg = null; cropMode = false; cropDone = false;
-                p.redraw();
+                sourceImg=img; rawImg=img.get(); cropMode=false; cropDone=false;
                 document.getElementById('px-crop-btn').style.display='inline-block';
+                document.getElementById('px-crop-confirm').style.display='none';
                 document.getElementById('px-crop-reset').style.display='none';
+                p.redraw();
             });
             p.startCrop = () => {
                 if (!sourceImg) return;
-                cropMode=true; cropDone=false;
-                p.redraw();
+                rawImg=null; cropMode=true; cropDone=false;
+                wrap().style.overflow='hidden'; p.canvas.style.cursor='crosshair';
                 document.getElementById('px-crop-confirm').style.display='inline-block';
-                // クロップ中はcanvasラッパーのスクロールをロック
-                document.getElementById('pixel-app-container').closest('.px-canvas-wrap').style.overflow='hidden';
-                p.canvas.style.cursor='crosshair';
+                p.redraw();
             };
             p.confirmCrop = () => {
                 if (!cropDone) return;
-                const drawW=p.width, drawH=p.floor(drawW/(sourceImg.width/sourceImg.height));
-                const scaleX=sourceImg.width/drawW, scaleY=sourceImg.height/drawH;
-                const rx=Math.round(Math.min(cx0,cx1)*scaleX), ry=Math.round(Math.min(cy0,cy1)*scaleY);
-                const rw=Math.round(Math.abs(cx1-cx0)*scaleX), rh=Math.round(Math.abs(cy1-cy0)*scaleY);
+                const dW=p.width, dH=p.floor(dW/(sourceImg.width/sourceImg.height));
+                const sx=sourceImg.width/dW, sy=sourceImg.height/dH;
+                const rx=Math.round(Math.min(cx0,cx1)*sx), ry=Math.round(Math.min(cy0,cy1)*sy);
+                const rw=Math.round(Math.abs(cx1-cx0)*sx), rh=Math.round(Math.abs(cy1-cy0)*sy);
                 if (rw<2||rh<2) return;
-                rawImg = sourceImg.get(rx,ry,rw,rh);
-                cropMode=false;
+                rawImg=sourceImg.get(rx,ry,rw,rh); cropMode=false;
+                wrap().style.overflow='auto'; p.canvas.style.cursor='default';
                 document.getElementById('px-crop-confirm').style.display='none';
                 document.getElementById('px-crop-reset').style.display='inline-block';
-                document.getElementById('pixel-app-container').closest('.px-canvas-wrap').style.overflow='auto';
-                p.canvas.style.cursor='default';
                 p.redraw();
             };
             p.resetCrop = () => {
-                rawImg=null; cropMode=false; cropDone=false;
+                rawImg=sourceImg ? sourceImg.get() : null; cropMode=false; cropDone=false;
+                wrap().style.overflow='auto'; p.canvas.style.cursor='default';
                 document.getElementById('px-crop-confirm').style.display='none';
                 document.getElementById('px-crop-reset').style.display='none';
-                document.getElementById('pixel-app-container').closest('.px-canvas-wrap').style.overflow='auto';
-                p.canvas.style.cursor='default';
                 p.redraw();
             };
-            p.pxUpdate = (gs,qs,dt,rm,bg,gl,glc,glw) => { gridSize=gs; quantizeStep=qs; useDither=dt; rawMode=rm; bgColor=bg; gridLine=gl; gridLineColor=glc; gridLineWeight=glw; p.redraw(); };
-            p.highlight = hv => {selectedHex=(selectedHex===hv?null:hv);p.redraw();};
-            p.swap      = (from,to) => {if(from===to)delete swapMap[from];else swapMap[from]=to;p.redraw();};
-            p.resetSwap = hv => {delete swapMap[hv];p.redraw();};
+            p.pxUpdate  = (gs,qs,dt,rm,bg,gl,glc,glw) => { gridSize=gs;quantizeStep=qs;useDither=dt;rawMode=rm;bgColor=bg;gridLine=gl;gridLineColor=glc;gridLineWeight=glw;p.redraw(); };
+            p.highlight = hv => { selectedHex=(selectedHex===hv?null:hv); p.redraw(); };
+            p.swap      = (from,to) => { if(from===to)delete swapMap[from];else swapMap[from]=to; p.redraw(); };
+            p.resetSwap = hv => { delete swapMap[hv]; p.redraw(); };
             p.getSwapMap= () => swapMap;
         }, container);
 
