@@ -59,6 +59,11 @@
         .px-box { width: 100%; height: 28px; border-radius: 4px; margin-bottom: 4px; border: 1px solid rgba(255,255,255,0.1); cursor: pointer; }
         .px-chip input[type="color"] { width: 100%; height: 20px; border: none; background: none; cursor: pointer; padding: 0; }
         .px-reset { font-size: 10px; color: #888; background: none; border: 1px solid #555; border-radius: 4px; cursor: pointer; padding: 2px 5px; margin-top: 3px; }
+        .px-bulk { display:flex; gap:6px; align-items:center; flex-wrap:wrap; margin-bottom:10px; padding:8px; background:#2a2a2a; border-radius:6px; }
+        .px-bulk select { background:#1e1e1e; color:#eee; border:1px solid #444; border-radius:4px; padding:3px 6px; font-size:11px; }
+        .px-bulk button { font-size:11px; padding:4px 10px; border-radius:4px; border:none; cursor:pointer; }
+        .px-chip input[type="checkbox"] { position:absolute; top:4px; left:4px; cursor:pointer; }
+        .px-chip { position:relative; }
     </style>
 </head>
 <body>
@@ -112,6 +117,14 @@
         <div class="px-row"><label>Pixel Size</label><input type="range" id="px-grid" min="2" max="60" value="10"><span class="px-val" id="px-grid-val">10</span></div>
         <div class="px-row"><label>Color Steps</label><input type="range" id="px-color" min="1" max="128" value="32"><span class="px-val" id="px-color-val">32</span></div>
         <div class="px-row"><label>Max Size (px)</label><input type="number" id="px-maxpx" value="0" min="0" step="1" style="width:70px;background:#2a2a2a;color:#eee;border:1px solid #444;border-radius:4px;padding:3px 6px;"><span style="font-size:11px;color:#666;margin-left:4px;">0=無制限</span></div>
+        <div id="px-bulk" class="px-bulk" style="display:none;">
+            <span style="font-size:11px;color:#aaa;">選択中: <b id="px-sel-count">0</b></span>
+            <input type="color" id="px-bulk-color" value="#ff0000" style="width:36px;height:26px;padding:0;border:none;cursor:pointer;">
+            <select id="px-bulk-palette" style="max-width:120px;"><option value="">パレットから選択...</option></select>
+            <button onclick="applyBulkSwap()" style="background:#007aff;color:white;">適用</button>
+            <button onclick="resetBulkSwap()" style="background:#555;color:white;">リセット</button>
+            <button onclick="clearSelection()" style="background:#333;color:#aaa;">選択解除</button>
+        </div>
         <div class="px-palette" id="px-palette"></div>
     </div>
 </div>
@@ -587,20 +600,68 @@
         };
     }
 
+    let pxSelected = new Set(); // チェック選択中の色
+
     function renderPxPalette(palette, selectedHex, swapMap) {
         const div = document.getElementById('px-palette');
-        div.innerHTML='';
-        palette.forEach((hv,i)=>{
-            const sw=swapMap[hv], disp=sw||hv;
-            const chip=document.createElement('div');
-            chip.className='px-chip'+(selectedHex===hv?' active':'');
-            chip.innerHTML=`<div class="px-box" style="background:${disp}"></div><b>#${i}</b><br><input type="color" value="${disp}">${sw?`<br><button class="px-reset" data-h="${hv}">↩</button>`:''}`;
-            chip.querySelector('.px-box').onclick=()=>pixelApp.highlight(hv);
-            chip.querySelector('input[type="color"]').oninput=e=>pixelApp.swap(hv,e.target.value);
-            const rb=chip.querySelector('.px-reset');
-            if(rb) rb.onclick=e=>{e.stopPropagation();pixelApp.resetSwap(hv);};
+        div.innerHTML = '';
+
+        // パレットドロップダウンを更新
+        const sel = document.getElementById('px-bulk-palette');
+        sel.innerHTML = '<option value="">パレットから選択...</option>';
+        palette.forEach((hv, i) => {
+            const opt = document.createElement('option');
+            opt.value = swapMap[hv] || hv;
+            opt.style.background = swapMap[hv] || hv;
+            opt.textContent = `#${i} ${swapMap[hv] || hv}`;
+            sel.appendChild(opt);
+        });
+        // ドロップダウン選択でカラーピッカーに反映
+        sel.onchange = () => { if (sel.value) document.getElementById('px-bulk-color').value = sel.value; };
+
+        palette.forEach((hv, i) => {
+            const sw = swapMap[hv], disp = sw || hv;
+            const chip = document.createElement('div');
+            chip.className = 'px-chip' + (selectedHex === hv ? ' active' : '');
+
+            const cb = document.createElement('input');
+            cb.type = 'checkbox';
+            cb.checked = pxSelected.has(hv);
+            cb.onchange = () => {
+                if (cb.checked) pxSelected.add(hv); else pxSelected.delete(hv);
+                updateBulkBar();
+            };
+            chip.appendChild(cb);
+
+            const inner = document.createElement('div');
+            inner.innerHTML = `<div class="px-box" style="background:${disp}"></div><b>#${i}</b><br><input type="color" value="${disp}">${sw ? `<br><button class="px-reset" data-h="${hv}">↩</button>` : ''}`;
+            inner.querySelector('.px-box').onclick = () => pixelApp.highlight(hv);
+            inner.querySelector('input[type="color"]').oninput = e => pixelApp.swap(hv, e.target.value);
+            const rb = inner.querySelector('.px-reset');
+            if (rb) rb.onclick = e => { e.stopPropagation(); pixelApp.resetSwap(hv); };
+            chip.appendChild(inner);
             div.appendChild(chip);
         });
+    }
+
+    function updateBulkBar() {
+        document.getElementById('px-sel-count').textContent = pxSelected.size;
+        document.getElementById('px-bulk').style.display = pxSelected.size > 0 ? 'flex' : 'none';
+    }
+
+    function applyBulkSwap() {
+        const color = document.getElementById('px-bulk-color').value;
+        pxSelected.forEach(hv => pixelApp.swap(hv, color));
+    }
+
+    function resetBulkSwap() {
+        pxSelected.forEach(hv => pixelApp.resetSwap(hv));
+    }
+
+    function clearSelection() {
+        pxSelected.clear();
+        updateBulkBar();
+        document.querySelectorAll('#px-palette .px-chip input[type="checkbox"]').forEach(cb => cb.checked = false);
     }
 
     init();
