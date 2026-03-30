@@ -45,7 +45,15 @@
         /* --- Pixel Indexer --- */
         #pixel-panel { display: none; background: #121212; border-radius: 12px; padding: 20px; color: #eee; }
         #pixel-panel.active { display: block; }
-        .px-canvas-wrap { border: 2px solid #444; background: #000; margin-bottom: 12px; overflow: auto; max-height: 60vh; }
+        .px-canvas-wrap { border: 2px solid #444; background: #000; margin-bottom: 12px; overflow: auto; max-height: 60vh; position: relative; }
+        #crop-overlay { display:none; position:absolute; top:0; left:0; width:100%; height:100%; pointer-events:none; }
+        #crop-rect { display:none; position:absolute; border:2px solid #ff5000; box-sizing:border-box; pointer-events:auto; cursor:move; }
+        #crop-rect::before { content:''; position:absolute; inset:0; background:transparent; }
+        .crop-handle { position:absolute; width:18px; height:18px; background:#ff5000; border-radius:3px; pointer-events:auto; z-index:10; }
+        .crop-handle.tl { top:-9px; left:-9px; cursor:nwse-resize; }
+        .crop-handle.tr { top:-9px; right:-9px; cursor:nesw-resize; }
+        .crop-handle.bl { bottom:-9px; left:-9px; cursor:nesw-resize; }
+        .crop-handle.br { bottom:-9px; right:-9px; cursor:nwse-resize; }
         #pixel-app-container { line-height: 0; transform-origin: 0 0; }
         .px-ui { background: #1e1e1e; padding: 16px; border-radius: 10px; }
         .px-row { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
@@ -99,13 +107,22 @@
 <div id="catalog-container" style="display:none;"></div>
 
 <div id="pixel-panel">
-    <div class="px-canvas-wrap"><div id="pixel-app-container"></div></div>
+    <div class="px-canvas-wrap">
+        <div id="pixel-app-container"></div>
+        <div id="crop-overlay"></div>
+        <div id="crop-rect">
+            <div class="crop-handle tl" data-h="tl"></div>
+            <div class="crop-handle tr" data-h="tr"></div>
+            <div class="crop-handle bl" data-h="bl"></div>
+            <div class="crop-handle br" data-h="br"></div>
+        </div>
+    </div>
     <div class="px-ui">
         <input type="file" id="px-file" accept="image/*" style="margin-bottom:12px; width:100%; color:#eee;">
         <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;">
-            <button id="px-crop-btn" style="display:none;background:#ff6a00;color:white;border:none;padding:5px 12px;border-radius:6px;cursor:pointer;font-size:12px;" onclick="pixelApp.startCrop()">✂ 範囲選択</button>
-            <button id="px-crop-confirm" style="display:none;background:#28a745;color:white;border:none;padding:5px 12px;border-radius:6px;cursor:pointer;font-size:12px;" onclick="pixelApp.confirmCrop()">✔ ここで切り出す</button>
-            <button id="px-crop-reset" style="display:none;background:#555;color:white;border:none;padding:5px 12px;border-radius:6px;cursor:pointer;font-size:12px;" onclick="pixelApp.resetCrop()">↩ 全体に戻す</button>
+            <button id="px-crop-btn" style="display:none;background:#ff6a00;color:white;border:none;padding:5px 12px;border-radius:6px;cursor:pointer;font-size:12px;" onclick="startCropUI()">✂ 範囲選択</button>
+            <button id="px-crop-confirm" style="display:none;background:#28a745;color:white;border:none;padding:5px 12px;border-radius:6px;cursor:pointer;font-size:12px;" onclick="confirmCropUI()">✔ ここで切り出す</button>
+            <button id="px-crop-reset" style="display:none;background:#555;color:white;border:none;padding:5px 12px;border-radius:6px;cursor:pointer;font-size:12px;" onclick="resetCropUI()">↩ 全体に戻す</button>
             <button onclick="pixelApp && pixelApp.saveCanvas('pixel','png')" style="background:#444;color:white;border:none;padding:5px 12px;border-radius:6px;cursor:pointer;font-size:12px;">💾 保存</button>
         </div>
         <div class="px-switch">
@@ -418,8 +435,6 @@
             let sourceImg = null, rawImg = null, selectedHex = null, swapMap = {};
             let gridSize = 10, quantizeStep = 32, useDither = true, rawMode = false, bgColor = '#000000';
             let gridLine = false, gridLineColor = '#333333', gridLineWeight = 1;
-            let cropMode = false, cropDone = false;
-            let cx0=0, cy0=0, cx1=0, cy1=0, dragging=false;
 
             p.setup = () => {
                 const w = container.parentElement.clientWidth || 640;
@@ -429,37 +444,10 @@
                     const nw = container.parentElement.clientWidth;
                     if (nw > 0 && nw !== p.width) { p.resizeCanvas(nw, p.height); p.redraw(); }
                 }).observe(container.parentElement);
-                // クロップ用マウスイベント（p.canvas確定後に登録）
-                const getPos = (e) => {
-                    const rect = p.canvas.getBoundingClientRect();
-                    const zoom = rect.width / p.canvas.offsetWidth || 1;
-                    const cx = e.touches ? e.touches[0].clientX : e.clientX;
-                    const cy = e.touches ? e.touches[0].clientY : e.clientY;
-                    return { x: Math.max(0, Math.min(p.width, (cx-rect.left)/zoom)), y: Math.max(0, Math.min(p.height, (cy-rect.top)/zoom)) };
-                };
-                p.canvas.addEventListener('mousedown',  (e) => { if (!cropMode) return; e.preventDefault(); const pos=getPos(e); cx0=pos.x; cy0=pos.y; cx1=pos.x; cy1=pos.y; dragging=true; cropDone=false; p.redraw(); });
-                p.canvas.addEventListener('mousemove',  (e) => { if (!cropMode||!dragging) return; e.preventDefault(); const pos=getPos(e); cx1=pos.x; cy1=pos.y; p.redraw(); });
-                p.canvas.addEventListener('mouseup',    ()  => { if (!cropMode||!dragging) return; dragging=false; cropDone=true; p.redraw(); });
-                p.canvas.addEventListener('touchstart', (e) => { if (!cropMode) return; e.preventDefault(); const pos=getPos(e); cx0=pos.x; cy0=pos.y; cx1=pos.x; cy1=pos.y; dragging=true; cropDone=false; p.redraw(); }, {passive:false});
-                p.canvas.addEventListener('touchmove',  (e) => { if (!cropMode||!dragging) return; e.preventDefault(); const pos=getPos(e); cx1=pos.x; cy1=pos.y; p.redraw(); }, {passive:false});
-                p.canvas.addEventListener('touchend',   ()  => { if (!cropMode||!dragging) return; dragging=false; cropDone=true; p.redraw(); });
             };
 
             p.draw = () => {
                 if (!rawImg && !sourceImg) { p.background(25); return; }
-                if (cropMode) {
-                    const dW=p.width, dH=p.floor(dW/(sourceImg.width/sourceImg.height));
-                    if (p.height!==dH) { p.resizeCanvas(dW,dH); p.redraw(); return; }
-                    p.background(0);
-                    p.image(sourceImg,0,0,dW,dH);
-                    if (dragging||cropDone) {
-                        const rx=Math.min(cx0,cx1), ry=Math.min(cy0,cy1), rw=Math.abs(cx1-cx0), rh=Math.abs(cy1-cy0);
-                        p.fill(0,0,0,120); p.noStroke();
-                        p.rect(0,0,dW,ry); p.rect(0,ry+rh,dW,dH-ry-rh); p.rect(0,ry,rx,rh); p.rect(rx+rw,ry,dW-rx-rw,rh);
-                        p.noFill(); p.stroke(255,80,0); p.strokeWeight(2); p.rect(rx,ry,rw,rh);
-                    }
-                    return;
-                }
                 if (!rawImg) { p.background(25); return; }
                 const drawW=p.width, drawH=p.floor(drawW/(rawImg.width/rawImg.height));
                 if (p.height!==drawH) { p.resizeCanvas(drawW,drawH); p.redraw(); return; }
@@ -520,12 +508,38 @@
                     const s=maxPx/Math.max(img.width,img.height);
                     img.resize(Math.round(img.width*s),Math.round(img.height*s));
                 }
-                sourceImg=img; rawImg=img.get(); cropMode=false; cropDone=false;
+                sourceImg=img; rawImg=img.get();
                 document.getElementById('px-crop-btn').style.display='inline-block';
                 document.getElementById('px-crop-confirm').style.display='none';
                 document.getElementById('px-crop-reset').style.display='none';
+                hideCropRect();
                 p.redraw();
             });
+            p.cropConfirm = () => {
+                const cv = p.canvas;
+                const cr = document.getElementById('crop-rect');
+                const canvasRect = cv.getBoundingClientRect();
+                const wrapRect = cv.parentElement.getBoundingClientRect();
+                const scaleX = sourceImg.width / cv.offsetWidth;
+                const scaleY = sourceImg.height / cv.offsetHeight;
+                const rx = Math.round((parseInt(cr.style.left)||0) * scaleX);
+                const ry = Math.round((parseInt(cr.style.top) ||0) * scaleY);
+                const rw = Math.round((parseInt(cr.style.width) ||100) * scaleX);
+                const rh = Math.round((parseInt(cr.style.height)||100) * scaleY);
+                if (rw<2||rh<2) return;
+                rawImg = sourceImg.get(rx, ry, rw, rh);
+                hideCropRect();
+                document.getElementById('px-crop-confirm').style.display='none';
+                document.getElementById('px-crop-reset').style.display='inline-block';
+                p.redraw();
+            };
+            p.cropReset = () => {
+                rawImg = sourceImg ? sourceImg.get() : null;
+                hideCropRect();
+                document.getElementById('px-crop-confirm').style.display='none';
+                document.getElementById('px-crop-reset').style.display='none';
+                p.redraw();
+            };
             p.startCrop = () => {
                 if (!sourceImg) return;
                 rawImg=null; cropMode=true; cropDone=false;
@@ -596,6 +610,96 @@
     }
 
     let pxSelected = new Set(); // チェック選択中の色
+
+    // ---- クロップ矩形（HTML要素方式）----
+    function showCropRect() {
+        const cv = pixelApp.canvas;
+        const rect = document.getElementById('crop-rect');
+        // キャンバスの中央に初期サイズで表示
+        const w = Math.round(cv.offsetWidth * 0.6);
+        const h = Math.round(cv.offsetHeight * 0.6);
+        const x = Math.round((cv.offsetWidth - w) / 2);
+        const y = Math.round((cv.offsetHeight - h) / 2);
+        rect.style.left   = x + 'px';
+        rect.style.top    = y + 'px';
+        rect.style.width  = w + 'px';
+        rect.style.height = h + 'px';
+        rect.style.display = 'block';
+    }
+
+    function hideCropRect() {
+        document.getElementById('crop-rect').style.display = 'none';
+    }
+
+    (function initCropRect() {
+        const rect = document.getElementById('crop-rect');
+        let mode = null; // 'move' | 'tl'|'tr'|'bl'|'br'
+        let startX, startY, startL, startT, startW, startH;
+        const MIN = 20;
+
+        function getCV() { return pixelApp ? pixelApp.canvas : null; }
+
+        function clamp(val, min, max) { return Math.max(min, Math.min(max, val)); }
+
+        function onStart(e) {
+            e.stopPropagation();
+            const t = e.touches ? e.touches[0] : e;
+            startX = t.clientX; startY = t.clientY;
+            startL = parseInt(rect.style.left)  || 0;
+            startT = parseInt(rect.style.top)   || 0;
+            startW = parseInt(rect.style.width) || 100;
+            startH = parseInt(rect.style.height)|| 100;
+            mode = e.target.dataset.h || 'move';
+            e.preventDefault();
+        }
+
+        function onMove(e) {
+            if (!mode) return;
+            e.preventDefault();
+            const t = e.touches ? e.touches[0] : e;
+            const dx = t.clientX - startX;
+            const dy = t.clientY - startY;
+            const cv = getCV();
+            const maxW = cv ? cv.offsetWidth  : 9999;
+            const maxH = cv ? cv.offsetHeight : 9999;
+            let l=startL, top=startT, w=startW, h=startH;
+
+            if (mode==='move') {
+                l = clamp(startL+dx, 0, maxW-w);
+                top = clamp(startT+dy, 0, maxH-h);
+            } else {
+                if (mode==='br'||mode==='tr') w = clamp(startW+dx, MIN, maxW-l);
+                if (mode==='bl'||mode==='tl') { w = clamp(startW-dx, MIN, startL+startW); l = startL+startW-w; }
+                if (mode==='br'||mode==='bl') h = clamp(startH+dy, MIN, maxH-top);
+                if (mode==='tr'||mode==='tl') { h = clamp(startH-dy, MIN, startT+startH); top = startT+startH-h; }
+            }
+            rect.style.left=l+'px'; rect.style.top=top+'px';
+            rect.style.width=w+'px'; rect.style.height=h+'px';
+        }
+
+        function onEnd() { mode = null; }
+
+        rect.addEventListener('mousedown',  onStart);
+        rect.addEventListener('touchstart', onStart, {passive:false});
+        document.addEventListener('mousemove',  onMove);
+        document.addEventListener('touchmove',  onMove, {passive:false});
+        document.addEventListener('mouseup',    onEnd);
+        document.addEventListener('touchend',   onEnd);
+    })();
+
+    function startCropUI() {
+        if (!pixelApp || !pixelApp.canvas) return;
+        showCropRect();
+        document.getElementById('px-crop-confirm').style.display='inline-block';
+    }
+
+    function confirmCropUI() {
+        if (pixelApp) pixelApp.cropConfirm();
+    }
+
+    function resetCropUI() {
+        if (pixelApp) pixelApp.cropReset();
+    }
 
     function renderPxPalette(palette, selectedHex, swapMap) {
         const div = document.getElementById('px-palette');
