@@ -96,6 +96,158 @@
     "url": "https://api.github.com/repos/dpolyglot0310-star/assets/git/blobs/64568880394547c8a386ba90ea8e695fcd11c0cc"
   },
   {
+    "path": "assets/00_character/99_cat/01_shiku_anime_01.png",
+    "mode": "100644",
+    "type": "blob",
+    "sha": "5d6770dea5154027e8e51a76b7653540444e2ee0",
+    "size": 1705503,
+    "url": "https://api.github.com/repos/dpolyglot0310-star/assets/git/blobs/5d6770dea5154027e8e51a76b7653540444e2ee0"
+  },
+  {
+    "path": "assets/00_character/99_cat/01_shiku_dot_01_00.png",
+    "mode": "100644",
+    "type": "blob",
+    "sha": "ce5107dcf40c69a61cb924ef90c417ca2091688d",
+    "size": 1237942,
+    "url": "https://api.github.com/repos/dpolyglot0310-star/assets/git/blobs/ce5107dcf40c69a61cb924ef90c417ca2091688d"
+  },
+  {
+    "path": "assets/00_character/99_cat/01_shiku_dot_02_00.png",
+    "mode": "100644",
+    "type": "blob",
+    "sha": "b804903892496cb68a167ee29e22d8178bc31368",
+    "size": 1339084,
+    "url": "https://api.github.com/repos/dpolyglot0310-star/assets/git/blobs/b804903892496cb68a167ee29e22d8178bc31368"
+  },
+  {
+    "path": "assets/00_character/99_cat/01_shiku_dot_02_01.png",
+    "mode": "100644",
+    "type": "blob",
+    "sha": "f62b2d065b6b840df7647a738ceef62e710e39bc",
+    "size": 208602,
+    "url": "https://api.github.com/repos/dpolyglot0310-star/assets/git/blobs/f62b2d065b6b840df7647a738ceef62e710e39bc"
+  },
+  {
+    "path": "assets/00_character/99_cat/01_shiku_dot_02_02.png",
+    "mode": "100644",
+    "type": "blob",
+    "sha": "d2190566aeed1fcbc62b91b55b79c40337a637e5",
+    "size": 24714,
+    "url": "https://api.github.com/repos/dpolyglot0310-star/assets/git/blobs/d2190566aeed1fcbc62b91b55b79c40337a637e5"
+  },
+  {
+    "path": "assets/00_character/99_cat/01_shiku_dot_02_03.png",
+    "mode": "100644",
+    "type": "blob",
+    "sha": "d7d523caeb35c7251ded6477ed3fbad324b22cfc",
+    "size": 2573,
+    "url": "https://api.github.com/repos/dpolyglot0310-star/assets/git/blobs/d7d523caeb35c7251ded6477ed3fbad324b22cfc"
+  },
+  {
+    "path": "assets/00_character/99_cat/01_shiku_dot_03_00.png",
+    "mode": "100644",
+    "type": "blob",
+    "sha": "a9ad89f191541b6283a3d1dd235419da2deb7c41",
+    "size": 1549391,
+    "url": "https://api.github.com/repos/dpolyglot0310-star/assets/git/blobs/a9ad89f191541b6283a3d1dd235419da2deb7c41"
+  },
+  {
+    "path": "assets/00_character/99_cat/01_shiku_dot_04_00.md",
+    "mode": "100644",
+    "type": "blob",
+    "sha": "ec710674f6c2066fb5fc480609b72dbe276e40c9",
+    "size": 156,
+    "url": "https://api.github.com/repos/dpolyglot0310-star/assets/git/blobs/ec710674f6c2066fb5fc480609b72dbe276e40c9"
+  },
+  {
+    "path": "assets/00_character/99_cat/01_shiku_dot_04_00.png",
+    "mode": "100644",
+    "type": "blob",
+    "sha": "973e838f3c9e4bd7f61c9d012514a681e1b0e312",
+    "size": 1632201,
+    "url": "https://api.github.com/repos/dpolyglot0310-star/assets/git/blobs/973e838f3c9e4bd7f61c9d012514a681e1b0e312"
+  },
+  {
+    "path": "assets/00_character/99_cat/04_gorube_dot_01.png",
+    "mode": "100644",
+    "type": "blob",
+    "sha": "a76d133417acf99c3b557deff35cbe3e26d3e007",
+    "size": 1588049,
+    "url": "https://api.github.com/repos/dpolyglot0310-star/assets/git/blobs/a76d133417acf99c3b557deff35cbe3e26d3e007"
+  },
+  {
+    "path": "assets/00_character/99_cat/04_gorube_dot_02.md",
+    "mode": "100644",
+    "type": "blob",
+    "sha": "b0ceaefc1922793f741109241c79ca9eba0689fa",
+    "size": 156,
+    "url": "https://api.github.com/repos/dpolyglot0310-star/assets/git/blobs/b0ceaefc1922793f741109241c79ca9eba0689fa"
+  },
+  {
+    "path": "assets/00_character/99_cat/04_gorube_dot_02.png",
+    "mode": "100644",
+    "type": "blob",
+    "sha": "372489d2d79075caf229a82e94256a92e7c84b09",
+    "size": 1638105,
+    "url": "https://api.github.com/repos/dpolyglot0310-star/assets/git/blobs/372489d2d79075caf229a82e94256a92e7c84b09"
+  },
+  {
+    "path": "assets/00_character/99_cat/05_byakko_dot_01_00.md",
+    "mode": "100644",
+    "type": "blob",
+    "sha": "ec5b595405dee303b512d0ab42db1c7998ac56aa",
+    "size": 148,
+    "url": "https://api.github.com/repos/dpolyglot0310-star/assets/git/blobs/ec5b595405dee303b512d0ab42db1c7998ac56aa"
+  },
+  {
+    "path": "assets/00_character/99_cat/05_byakko_dot_01_00.png",
+    "mode": "100644",
+    "type": "blob",
+    "sha": "e04aea1ab187cc02ac5669717362d5675e0bfdec",
+    "size": 1861743,
+    "url": "https://api.github.com/repos/dpolyglot0310-star/assets/git/blobs/e04aea1ab187cc02ac5669717362d5675e0bfdec"
+  },
+  {
+    "path": "assets/00_character/99_cat/06_siro_dot_01_00.png",
+    "mode": "100644",
+    "type": "blob",
+    "sha": "870930b2965c2dd63fa65704e04ed294abdf093d",
+    "size": 1976899,
+    "url": "https://api.github.com/repos/dpolyglot0310-star/assets/git/blobs/870930b2965c2dd63fa65704e04ed294abdf093d"
+  },
+  {
+    "path": "assets/00_character/99_cat/06_siro_dot_02_00.md",
+    "mode": "100644",
+    "type": "blob",
+    "sha": "9ae34daad5ee27bac7d6ed80e3ac3d27c0013417",
+    "size": 159,
+    "url": "https://api.github.com/repos/dpolyglot0310-star/assets/git/blobs/9ae34daad5ee27bac7d6ed80e3ac3d27c0013417"
+  },
+  {
+    "path": "assets/00_character/99_cat/06_siro_dot_02_00.png",
+    "mode": "100644",
+    "type": "blob",
+    "sha": "ce8e84855319c0e243addfeab1554d99f32be268",
+    "size": 2065327,
+    "url": "https://api.github.com/repos/dpolyglot0310-star/assets/git/blobs/ce8e84855319c0e243addfeab1554d99f32be268"
+  },
+  {
+    "path": "assets/00_character/99_cat/06_siro_dot_03_00.png",
+    "mode": "100644",
+    "type": "blob",
+    "sha": "da35684d099e6b3cef59fc4d52077eedff9d69a2",
+    "size": 2279934,
+    "url": "https://api.github.com/repos/dpolyglot0310-star/assets/git/blobs/da35684d099e6b3cef59fc4d52077eedff9d69a2"
+  },
+  {
+    "path": "assets/00_character/99_cat/06_siro_dot_04_00.png",
+    "mode": "100644",
+    "type": "blob",
+    "sha": "ad8f2c623e8cf501474af7bc0107e7e2b2feb8e8",
+    "size": 1048013,
+    "url": "https://api.github.com/repos/dpolyglot0310-star/assets/git/blobs/ad8f2c623e8cf501474af7bc0107e7e2b2feb8e8"
+  },
+  {
     "path": "assets/01_animations/001_tuuuun/.asset/01.png",
     "mode": "100644",
     "type": "blob",
