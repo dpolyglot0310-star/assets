@@ -259,16 +259,21 @@ const USER = 'dpolyglot0310-star';
 
     init();
 
-    // ページ読み込み時に実行
-    fetch('last_update.txt')
+    fetch('assets/last_update.txt')
     .then(res => {
-        if (!res.ok) return "不明";
+        if (!res.ok) throw new Error("File not found");
         return res.text();
     })
-    .then(time => {
-        if (time === "不明") return;
-        // 日本時間に変換して表示
-        const date = new Date(time).toLocaleString('ja-JP');
-        document.getElementById('last-update').innerText = `最終更新: ${date}`;
+    .then(timeStr => {
+        const trimmedTime = timeStr.trim(); // 改行コードなどを除去
+        const date = new Date(trimmedTime);
+        
+        // 有効な日付かチェック
+        if (isNaN(date.getTime())) {
+        console.error("Invalid Date format:", trimmedTime);
+        return;
+        }
+
+        document.getElementById('last-update').innerText = `最終更新: ${date.toLocaleString('ja-JP')}`;
     })
-    .catch(() => {});
+    .catch(err => console.log("Timestamp fetch error:", err));

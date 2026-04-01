@@ -26,10 +26,10 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           
           # 現在の時刻をISO形式でファイルに書き込む
-          date -u +"%Y-%m-%dT%H:%M:%SZ" > last_update.txt
+          date -u +"%Y-%m-%dT%H:%M:%SZ" > assets/last_update.txt
           
           # list.json と last_update.txt の両方をステージング
-          git add list.json last_update.txt
+          git add assets/list.json assets/last_update.txt
           
           # どちらかに差分があればコミットしてPush
           git diff --cached --quiet || (git commit -m "chore: update assets and timestamp" && git push)
