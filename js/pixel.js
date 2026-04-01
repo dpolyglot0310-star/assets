@@ -428,7 +428,7 @@
         }, container);
 
         // コントロールのイベント
-        const pxUpdate = () => {
+        function pxUpdate() {
             const gs  = parseInt(document.getElementById('px-grid').value);
             const qs  = parseInt(document.getElementById('px-color').value);
             const mc  = parseInt(document.getElementById('px-maxcol').value)||256;
