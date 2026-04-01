@@ -123,10 +123,10 @@
             <button id="px-crop-confirm" style="display:none;background:#28a745;color:white;border:none;padding:5px 12px;border-radius:6px;cursor:pointer;font-size:12px;" onclick="confirmCropUI()">✔ ここで切り出す</button>
             <button id="px-crop-reset" style="display:none;background:#555;color:white;border:none;padding:5px 12px;border-radius:6px;cursor:pointer;font-size:12px;" onclick="resetCropUI()">↩ 全体に戻す</button>
             <button onclick="pixelApp && pixelApp.saveCanvas('pixel','png')" style="background:#444;color:white;border:none;padding:5px 12px;border-radius:6px;cursor:pointer;font-size:12px;">💾 保存</button>
+            <button id="px-undo" disabled onclick="pixelApp && pixelApp.undo()" style="background:#555;color:white;border:none;padding:5px 12px;border-radius:6px;cursor:pointer;font-size:12px;">↩ 戻る</button>
         </div>
         <div class="px-switch">
-            <label><input type="checkbox" id="px-dither" checked> Dithering ON</label>
-            <label><input type="checkbox" id="px-raw"> Raw (色変換なし)</label>
+            <label><input type="checkbox" id="px-raw"> Raw (プレビュー)</label>
             <label>BG: <input type="color" id="px-bg" value="#000000" style="width:36px;height:22px;padding:0;border:none;cursor:pointer;"></label>
             <label><input type="checkbox" id="px-gridline"> Grid: <input type="color" id="px-gridline-color" value="#333333" style="width:36px;height:22px;padding:0;border:none;cursor:pointer;"> <input type="number" id="px-gridline-w" value="1" min="1" max="5" style="width:36px;background:#2a2a2a;color:#eee;border:1px solid #444;border-radius:4px;padding:2px 4px;">px</label>
             <label>Zoom: <input type="range" id="px-zoom" min="0.25" max="5" step="0.05" value="1" style="width:90px;"> <span id="px-zoom-val">100%</span> <button onclick="document.getElementById('px-zoom').value=1;document.getElementById('pixel-app-container').style.transform='scale(1)';document.getElementById('px-zoom-val').innerText='100%';" style="padding:2px 7px;font-size:11px;background:#444;color:#eee;border:none;border-radius:4px;cursor:pointer;">100%</button></label>
@@ -144,22 +144,29 @@
             </select>
             <span id="px-preset-label" style="font-size:10px;color:#888;"></span>
         </div>
-        <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:10px;">
-            <span style="font-size:11px;color:#aaa;flex-shrink:0;">Preset:</span>
-            <select id="px-preset" onchange="applyPreset(this.value)" style="background:#2a2a2a;color:#eee;border:1px solid #444;border-radius:4px;padding:3px 8px;font-size:11px;">
-                <option value="">-- 選択 --</option>
-                <option value="dot">🎮 ドット絵 (8/32/16)</option>
-                <option value="mosaic">🔳 モザイク (20/16/32)</option>
-                <option value="retro">👾 レトロ (16/8/8)</option>
-                <option value="fine">✨ 高精細 (4/64/64)</option>
-                <option value="mono">■ モノクロ2値 (8/128/2)</option>
-                <option value="auto">🤖 画像から自動判定</option>
-            </select>
-            <span id="px-preset-label" style="font-size:10px;color:#666;"></span>
+        <div id="px-img-info" style="font-size:11px;color:#666;margin-bottom:8px;"></div>
+        <div class="px-row">
+            <label>Pixel Size</label>
+            <input type="range" id="px-grid" min="2" max="60" value="10">
+            <input type="number" id="px-grid-num" min="2" max="60" value="10" style="width:48px;background:#2a2a2a;color:#00ffcc;border:1px solid #444;border-radius:4px;padding:2px 4px;font-family:monospace;">
         </div>
-        <div class="px-row"><label>Pixel Size</label><input type="range" id="px-grid" min="2" max="60" value="10"><input type="number" id="px-grid-num" min="2" max="60" value="10" style="width:48px;background:#2a2a2a;color:#00ffcc;border:1px solid #444;border-radius:4px;padding:2px 4px;font-family:monospace;"></div>
-        <div class="px-row"><label>Color Steps</label><input type="range" id="px-color" min="1" max="128" value="32"><input type="number" id="px-color-num" min="1" max="128" value="32" style="width:48px;background:#2a2a2a;color:#00ffcc;border:1px solid #444;border-radius:4px;padding:2px 4px;font-family:monospace;"></div>
-        <div class="px-row"><label>Max Colors</label><input type="range" id="px-maxcol" min="1" max="256" value="256"><input type="number" id="px-maxcol-num" min="1" max="256" value="256" style="width:48px;background:#2a2a2a;color:#00ffcc;border:1px solid #444;border-radius:4px;padding:2px 4px;font-family:monospace;"></div>
+        <div class="px-row">
+            <label><input type="checkbox" id="px-quant" checked> 減色</label>
+            <select id="px-quant-method" style="background:#2a2a2a;color:#eee;border:1px solid #444;border-radius:4px;padding:2px 6px;font-size:11px;">
+                <option value="uniform">均等量子化</option>
+                <option value="kmeans">K-means</option>
+            </select>
+            <input type="range" id="px-color" min="1" max="128" value="32">
+            <input type="number" id="px-color-num" min="1" max="128" value="32" style="width:48px;background:#2a2a2a;color:#00ffcc;border:1px solid #444;border-radius:4px;padding:2px 4px;font-family:monospace;">
+        </div>
+        <div class="px-row">
+            <label><input type="checkbox" id="px-dither" checked> Dithering</label>
+        </div>
+        <div class="px-row">
+            <label><input type="checkbox" id="px-maxcol-on" checked> Max Colors</label>
+            <input type="range" id="px-maxcol" min="1" max="256" value="256">
+            <input type="number" id="px-maxcol-num" min="1" max="256" value="256" style="width:48px;background:#2a2a2a;color:#00ffcc;border:1px solid #444;border-radius:4px;padding:2px 4px;font-family:monospace;">
+        </div>
         <div id="px-bulk" class="px-bulk" style="display:none;">
             <span style="font-size:11px;color:#aaa;">選択中: <b id="px-sel-count">0</b></span>
             <input type="color" id="px-bulk-color" value="#ff0000" style="width:36px;height:26px;padding:0;border:none;cursor:pointer;">
@@ -457,9 +464,10 @@
         const container = document.getElementById('pixel-app-container');
         pixelApp = new p5(function(p) {
             let sourceImg = null, rawImg = null, selectedHex = null, swapMap = {};
-            let gridSize = 10, quantizeStep = 32, useDither = true, rawMode = false, bgColor = '#000000';
+            let history = [], historyMax = 20;
+            let gridSize = 10, quantizeStep = 32, useDither = true, useQuant = true, quantMethod = 'uniform', rawMode = false, bgColor = '#000000';
             let gridLine = false, gridLineColor = '#333333', gridLineWeight = 1;
-            let maxColors = 256;
+            let maxColors = 256, useMaxColors = true;
 
             p.setup = () => {
                 const w = container.parentElement.clientWidth || 640;
@@ -501,21 +509,25 @@
                         buf[i+3]=255;
                     }
                 }
-                if (!rawMode) {
-                    const qs=quantizeStep, qt=v=>Math.max(0,Math.min(255,Math.round(v/qs)*qs));
-                    if (useDither) {
-                        for (let y=0;y<rows;y++) for (let x=0;x<cols;x++) {
-                            const i=(x+y*cols)*4;
-                            const nr=qt(buf[i]),ng=qt(buf[i+1]),nb=qt(buf[i+2]);
-                            const er=buf[i]-nr,eg=buf[i+1]-ng,eb=buf[i+2]-nb;
-                            buf[i]=nr;buf[i+1]=ng;buf[i+2]=nb;
-                            sp(buf,x+1,y,  cols,rows,er,eg,eb,7/16);
-                            sp(buf,x-1,y+1,cols,rows,er,eg,eb,3/16);
-                            sp(buf,x,  y+1,cols,rows,er,eg,eb,5/16);
-                            sp(buf,x+1,y+1,cols,rows,er,eg,eb,1/16);
-                        }
+                if (!rawMode && useQuant) {
+                    if (quantMethod === 'kmeans') {
+                        kmeansQuantize(buf, cols, rows, quantizeStep, useDither);
                     } else {
-                        for (let i=0;i<buf.length;i+=4){buf[i]=qt(buf[i]);buf[i+1]=qt(buf[i+1]);buf[i+2]=qt(buf[i+2]);}
+                        const qs=quantizeStep, qt=v=>Math.max(0,Math.min(255,Math.round(v/qs)*qs));
+                        if (useDither) {
+                            for (let y=0;y<rows;y++) for (let x=0;x<cols;x++) {
+                                const i=(x+y*cols)*4;
+                                const nr=qt(buf[i]),ng=qt(buf[i+1]),nb=qt(buf[i+2]);
+                                const er=buf[i]-nr,eg=buf[i+1]-ng,eb=buf[i+2]-nb;
+                                buf[i]=nr;buf[i+1]=ng;buf[i+2]=nb;
+                                sp(buf,x+1,y,  cols,rows,er,eg,eb,7/16);
+                                sp(buf,x-1,y+1,cols,rows,er,eg,eb,3/16);
+                                sp(buf,x,  y+1,cols,rows,er,eg,eb,5/16);
+                                sp(buf,x+1,y+1,cols,rows,er,eg,eb,1/16);
+                            }
+                        } else {
+                            for (let i=0;i<buf.length;i+=4){buf[i]=qt(buf[i]);buf[i+1]=qt(buf[i+1]);buf[i+2]=qt(buf[i+2]);}
+                        }
                     }
                 }
                 // maxColors制限：先にリマップを構範してから一度だけ描画
@@ -527,17 +539,19 @@
                     paletteSet.add(dh);
                 }
                 const sorted=Array.from(paletteSet).sort((a,b)=>lum(p,b)-lum(p,a));
-                const limited=sorted.slice(0,maxColors);
-                // 制限外の色→最近傍色のリマップテーブルを一度構範
+                const limited = (rawMode || !useMaxColors) ? sorted : sorted.slice(0,maxColors);
+                // 制限外の色→最近傍色のリマップテーブル
                 const remap={};
-                sorted.forEach(h=>{
-                    if(!limited.includes(h)){
-                        let best=limited[0],bestD=Infinity;
-                        const c=p.color(h),r=p.red(c),g=p.green(c),b=p.blue(c);
-                        limited.forEach(lh=>{const lc=p.color(lh),d=(p.red(lc)-r)**2+(p.green(lc)-g)**2+(p.blue(lc)-b)**2;if(d<bestD){bestD=d;best=lh;}});
-                        remap[h]=best;
-                    }
-                });
+                if (!rawMode && useMaxColors) {
+                    sorted.forEach(h=>{
+                        if(!limited.includes(h)){
+                            let best=limited[0],bestD=Infinity;
+                            const c=p.color(h),r=p.red(c),g=p.green(c),b=p.blue(c);
+                            limited.forEach(lh=>{const lc=p.color(lh),d=(p.red(lc)-r)**2+(p.green(lc)-g)**2+(p.blue(lc)-b)**2;if(d<bestD){bestD=d;best=lh;}});
+                            remap[h]=best;
+                        }
+                    });
+                }
                 if (gridLine){p.stroke(gridLineColor);p.strokeWeight(gridLineWeight);}else{p.noStroke();}
                 for (let y=0;y<rows;y++) for (let x=0;x<cols;x++) {
                     const i=(x+y*cols)*4;
@@ -567,17 +581,64 @@
             }
             function lum(p,h){const c=p.color(h);return .299*p.red(c)+.587*p.green(c)+.114*p.blue(c);}
 
+            function kmeansQuantize(buf, cols, rows, qs, dither) {
+                // k = 256/qsをクラスタ数の目安に使用
+                const k = Math.max(2, Math.min(64, Math.round(256 / qs)));
+                const n = cols * rows;
+                // 初期センター：ランダムサンプリング
+                let centers = [];
+                const used = new Set();
+                while (centers.length < k) {
+                    const idx = Math.floor(Math.random() * n);
+                    if (!used.has(idx)) { used.add(idx); const i=idx*4; centers.push([buf[i],buf[i+1],buf[i+2]]); }
+                }
+                // イテレーション（10回）
+                for (let iter=0; iter<10; iter++) {
+                    const sums = centers.map(()=>[0,0,0,0]);
+                    for (let j=0; j<n; j++) {
+                        const i=j*4, r=buf[i],g=buf[i+1],b=buf[i+2];
+                        let best=0, bestD=Infinity;
+                        centers.forEach((c,ci)=>{ const d=(c[0]-r)**2+(c[1]-g)**2+(c[2]-b)**2; if(d<bestD){bestD=d;best=ci;} });
+                        sums[best][0]+=r; sums[best][1]+=g; sums[best][2]+=b; sums[best][3]++;
+                    }
+                    centers = sums.map((s,ci)=> s[3]>0 ? [s[0]/s[3],s[1]/s[3],s[2]/s[3]] : centers[ci]);
+                }
+                // ピクセルを最近センターに置き換え（ディザあり）
+                if (dither) {
+                    for (let y=0; y<rows; y++) for (let x=0; x<cols; x++) {
+                        const i=(x+y*cols)*4, r=buf[i],g=buf[i+1],b=buf[i+2];
+                        let best=0, bestD=Infinity;
+                        centers.forEach((c,ci)=>{ const d=(c[0]-r)**2+(c[1]-g)**2+(c[2]-b)**2; if(d<bestD){bestD=d;best=ci;} });
+                        const nr=Math.round(centers[best][0]), ng=Math.round(centers[best][1]), nb=Math.round(centers[best][2]);
+                        buf[i]=nr; buf[i+1]=ng; buf[i+2]=nb;
+                        const er=r-nr, eg=g-ng, eb=b-nb;
+                        sp(buf,x+1,y,  cols,rows,er,eg,eb,7/16);
+                        sp(buf,x-1,y+1,cols,rows,er,eg,eb,3/16);
+                        sp(buf,x,  y+1,cols,rows,er,eg,eb,5/16);
+                        sp(buf,x+1,y+1,cols,rows,er,eg,eb,1/16);
+                    }
+                } else {
+                    for (let j=0; j<n; j++) {
+                        const i=j*4, r=buf[i],g=buf[i+1],b=buf[i+2];
+                        let best=0, bestD=Infinity;
+                        centers.forEach((c,ci)=>{ const d=(c[0]-r)**2+(c[1]-g)**2+(c[2]-b)**2; if(d<bestD){bestD=d;best=ci;} });
+                        buf[i]=Math.round(centers[best][0]); buf[i+1]=Math.round(centers[best][1]); buf[i+2]=Math.round(centers[best][2]);
+                    }
+                }
+            }
+
             const wrap = () => document.getElementById('pixel-app-container').closest('.px-canvas-wrap');
 
             p.setImage = (url) => p.loadImage(url, img => {
                 sourceImg=img; rawImg=img.get();
-                swapMap={}; selectedHex=null;
+                swapMap={}; selectedHex=null; history=[];
+                document.getElementById('px-img-info').textContent = '元画像: ' + img.width + ' × ' + img.height + ' px';
                 document.getElementById('px-crop-btn').style.display='inline-block';
                 document.getElementById('px-crop-confirm').style.display='none';
                 document.getElementById('px-crop-reset').style.display='none';
+                document.getElementById('px-undo').disabled=true;
                 hideCropRect();
                 pxSelected.clear(); updateBulkBar();
-                // resizeCanvasのタイミングずれを避けるためで1フレーム待ってから再描画
                 setTimeout(() => p.redraw(), 0);
             });
             p.cropConfirm = () => {
@@ -590,6 +651,7 @@
                 const rw = Math.round((parseInt(cr.style.width) ||100) * scaleX);
                 const rh = Math.round((parseInt(cr.style.height)||100) * scaleY);
                 if (rw<2||rh<2) return;
+                p.pushHistory();
                 rawImg = sourceImg.get(rx, ry, rw, rh);
                 hideCropRect();
                 document.getElementById('px-crop-confirm').style.display='none';
@@ -603,7 +665,25 @@
                 document.getElementById('px-crop-reset').style.display='none';
                 p.redraw();
             };
-            p.pxUpdate  = (gs,qs,dt,rm,bg,gl,glc,glw,mc) => { gridSize=gs;quantizeStep=qs;useDither=dt;rawMode=rm;bgColor=bg;gridLine=gl;gridLineColor=glc;gridLineWeight=glw;maxColors=mc;p.redraw(); };
+            p.pxUpdate = (gs,qs,uq,qm,dt,rm,bg,gl,glc,glw,mc,umc) => {
+                gridSize=gs; quantizeStep=qs; useQuant=uq; quantMethod=qm;
+                useDither=dt; rawMode=rm; bgColor=bg;
+                gridLine=gl; gridLineColor=glc; gridLineWeight=glw;
+                maxColors=mc; useMaxColors=umc;
+                p.redraw();
+            };
+            p.pushHistory = () => {
+                if (!rawImg) return;
+                history.push(rawImg.get());
+                if (history.length > historyMax) history.shift();
+                document.getElementById('px-undo').disabled = false;
+            };
+            p.undo = () => {
+                if (!history.length) return;
+                rawImg = history.pop();
+                if (!history.length) document.getElementById('px-undo').disabled = true;
+                p.redraw();
+            };
             p.highlight = hv => { selectedHex=(selectedHex===hv?null:hv); p.redraw(); };
             p.swap      = (from,to) => { if(from===to)delete swapMap[from];else swapMap[from]=to; p.redraw(); };
             p.resetSwap = hv => { delete swapMap[hv]; p.redraw(); };
@@ -613,20 +693,32 @@
 
         // コントロールのイベント
         const pxUpdate = () => {
-            const gs=parseInt(document.getElementById('px-grid').value);
-            const qs=parseInt(document.getElementById('px-color').value);
-            const mc=parseInt(document.getElementById('px-maxcol').value)||256;
-            const dt=document.getElementById('px-dither').checked;
-            const rm=document.getElementById('px-raw').checked;
-            const bg=document.getElementById('px-bg').value;
-            const gl=document.getElementById('px-gridline').checked;
-            const glc=document.getElementById('px-gridline-color').value;
-            const glw=parseInt(document.getElementById('px-gridline-w').value)||1;
+            const gs  = parseInt(document.getElementById('px-grid').value);
+            const qs  = parseInt(document.getElementById('px-color').value);
+            const mc  = parseInt(document.getElementById('px-maxcol').value)||256;
+            const uq  = document.getElementById('px-quant').checked;
+            const qm  = document.getElementById('px-quant-method').value;
+            const dt  = document.getElementById('px-dither').checked;
+            const umc = document.getElementById('px-maxcol-on').checked;
+            const rm  = document.getElementById('px-raw').checked;
+            const bg  = document.getElementById('px-bg').value;
+            const gl  = document.getElementById('px-gridline').checked;
+            const glc = document.getElementById('px-gridline-color').value;
+            const glw = parseInt(document.getElementById('px-gridline-w').value)||1;
             document.getElementById('px-grid-num').value=gs;
             document.getElementById('px-color-num').value=qs;
             document.getElementById('px-maxcol-num').value=mc;
-            ['px-dither','px-grid','px-color','px-grid-num','px-color-num','px-maxcol','px-maxcol-num'].forEach(id=>document.getElementById(id).disabled=rm);
-            pixelApp.pxUpdate(gs,qs,dt,rm,bg,gl,glc,glw,mc);
+            // Raw時はPixel Size以外を無効化、それ以外は独立制御
+            const rawOn = rm;
+            document.getElementById('px-quant').disabled = rawOn;
+            document.getElementById('px-quant-method').disabled = rawOn || !uq;
+            document.getElementById('px-color').disabled = rawOn || !uq;
+            document.getElementById('px-color-num').disabled = rawOn || !uq;
+            document.getElementById('px-dither').disabled = rawOn || !uq;
+            document.getElementById('px-maxcol-on').disabled = rawOn;
+            document.getElementById('px-maxcol').disabled = rawOn || !umc;
+            document.getElementById('px-maxcol-num').disabled = rawOn || !umc;
+            pixelApp.pxUpdate(gs,qs,uq,qm,dt,rm,bg,gl,glc,glw,mc,umc);
         };
         // スライダ↔数値入力連動
         const syncNum = (rangeId, numId) => {
@@ -636,7 +728,10 @@
         syncNum('px-grid',   'px-grid-num');
         syncNum('px-color',  'px-color-num');
         syncNum('px-maxcol', 'px-maxcol-num');
+        document.getElementById('px-quant').onchange=pxUpdate;
+        document.getElementById('px-quant-method').onchange=pxUpdate;
         document.getElementById('px-dither').onchange=pxUpdate;
+        document.getElementById('px-maxcol-on').onchange=pxUpdate;
         document.getElementById('px-raw').onchange=pxUpdate;
         document.getElementById('px-bg').oninput=pxUpdate;
         document.getElementById('px-gridline').onchange=pxUpdate;
