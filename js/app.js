@@ -252,8 +252,21 @@ const USER = 'dpolyglot0310-star';
 
     function downloadJSON() {
         if (assetData.length === 0) return alert("データがありません");
-        const blob = new Blob([JSON.stringify(assetData, null, 2)], {type: 'application/json'});
-        const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'list.json'; a.click();
+        
+        // 1. JSONのDL（今まで通り）
+        const blobJson = new Blob([JSON.stringify(assetData, null, 2)], {type: 'application/json'});
+        const aJson = document.createElement('a');
+        aJson.href = URL.createObjectURL(blobJson);
+        aJson.download = 'list.json';
+        aJson.click();
+
+        // 2. 更新時刻（txt）のDLを追加
+        const now = new Date().toISOString(); // Actionsと同じISO形式
+        const blobTxt = new Blob([now], {type: 'text/plain'});
+        const aTxt = document.createElement('a');
+        aTxt.href = URL.createObjectURL(blobTxt);
+        aTxt.download = 'last_update.txt';
+        aTxt.click();
     }
 
 
