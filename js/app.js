@@ -258,3 +258,17 @@ const USER = 'dpolyglot0310-star';
 
 
     init();
+
+    // ページ読み込み時に実行
+    fetch('last_update.txt')
+    .then(res => {
+        if (!res.ok) return "不明";
+        return res.text();
+    })
+    .then(time => {
+        if (time === "不明") return;
+        // 日本時間に変換して表示
+        const date = new Date(time).toLocaleString('ja-JP');
+        document.getElementById('last-update').innerText = `最終更新: ${date}`;
+    })
+    .catch(() => {});

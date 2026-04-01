@@ -791,3 +791,10 @@
                 setTimeout(() => URL.revokeObjectURL(url), 60000);
             });
     }
+    
+    // pixel.js の末尾に追加 20260401 Gemini
+    window.pxUpdate = function() {
+        if (typeof redraw === 'function') {
+            redraw();
+        }
+    };
