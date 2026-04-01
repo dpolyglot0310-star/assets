@@ -134,6 +134,19 @@
         <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:10px;">
             <span style="font-size:11px;color:#aaa;flex-shrink:0;">Preset:</span>
             <select id="px-preset" onchange="applyPreset(this.value)" style="background:#2a2a2a;color:#eee;border:1px solid #444;border-radius:4px;padding:3px 8px;font-size:11px;">
+                <option value="">— 選択 —</option>
+                <option value="dot">🎮 ドット絵</option>
+                <option value="mosaic">🔳 モザイク</option>
+                <option value="retro">👾 レトロ</option>
+                <option value="fine">✨ 高精細</option>
+                <option value="mono">■ モノクロ2値</option>
+                <option value="auto">🤖 画像から自動判定</option>
+            </select>
+            <span id="px-preset-label" style="font-size:10px;color:#888;"></span>
+        </div>
+        <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:10px;">
+            <span style="font-size:11px;color:#aaa;flex-shrink:0;">Preset:</span>
+            <select id="px-preset" onchange="applyPreset(this.value)" style="background:#2a2a2a;color:#eee;border:1px solid #444;border-radius:4px;padding:3px 8px;font-size:11px;">
                 <option value="">-- 選択 --</option>
                 <option value="dot">🎮 ドット絵 (8/32/16)</option>
                 <option value="mosaic">🔳 モザイク (20/16/32)</option>
@@ -594,7 +607,8 @@
             p.highlight = hv => { selectedHex=(selectedHex===hv?null:hv); p.redraw(); };
             p.swap      = (from,to) => { if(from===to)delete swapMap[from];else swapMap[from]=to; p.redraw(); };
             p.resetSwap = hv => { delete swapMap[hv]; p.redraw(); };
-            p.getSwapMap= () => swapMap;
+            p.getSwapMap  = () => swapMap;
+            p.getSourceImg= () => sourceImg;
         }, container);
 
         // コントロールのイベント
@@ -640,7 +654,87 @@
         };
     }
 
-    let pxSelected = new Set(); // チェック選択中の色
+    let pxSelected = new Set();
+
+    // 設定をUIに反映して再描画
+    function applySettings(gs, qs, mc, label) {
+        document.getElementById('px-grid').value    = gs;
+        document.getElementById('px-grid-num').value = gs;
+        document.getElementById('px-color').value   = qs;
+        document.getElementById('px-color-num').value = qs;
+        document.getElementById('px-maxcol').value  = mc;
+        document.getElementById('px-maxcol-num').value = mc;
+        if (label) document.getElementById('px-preset-label').textContent = label;
+        pxUpdate();
+        // 選択をリセット（同じ項目を再選できるように）
+        setTimeout(() => document.getElementById('px-preset').value = '', 0);
+    }
+
+    function applyPreset(val) {
+        if (!val) return;
+        const presets = {
+            dot:    { gs:8,  qs:32,  mc:16,  label:'Pixel Size 8 / Steps 32 / Colors 16' },
+            mosaic: { gs:20, qs:16,  mc:32,  label:'Pixel Size 20 / Steps 16 / Colors 32' },
+            retro:  { gs:16, qs:8,   mc:8,   label:'Pixel Size 16 / Steps 8 / Colors 8' },
+            fine:   { gs:4,  qs:64,  mc:64,  label:'Pixel Size 4 / Steps 64 / Colors 64' },
+            mono:   { gs:8,  qs:128, mc:2,   label:'Pixel Size 8 / Steps 128 / Colors 2' },
+        };
+        if (val === 'auto') { autoDetect(); return; }
+        const p = presets[val];
+        if (p) applySettings(p.gs, p.qs, p.mc, p.label);
+    }
+
+    function autoDetect() {
+        if (!pixelApp || !pixelApp.canvas) return;
+        // sourceImgのピクセルをサンプリングして画像特徴を分析
+        const src = pixelApp.getSourceImg ? pixelApp.getSourceImg() : null;
+        if (!src) { applySettings(8, 32, 16, '画像未読み込み'); return; }
+
+        const sample = document.createElement('canvas');
+        const size = 64;
+        sample.width = sample.height = size;
+        const ctx = sample.getContext('2d');
+        // p5イメージを一度canvasに描画してピクセル取得
+        ctx.drawImage(pixelApp.canvas, 0, 0, size, size);
+        const data = ctx.getImageData(0, 0, size, size).data;
+
+        // 色数・輝度分散・コントラストを計測
+        const colorSet = new Set();
+        let lumSum = 0, lumSqSum = 0, n = 0;
+        for (let i = 0; i < data.length; i += 4) {
+            if (data[i+3] < 128) continue;
+            const r = data[i] >> 4, g = data[i+1] >> 4, b = data[i+2] >> 4;
+            colorSet.add((r << 8) | (g << 4) | b);
+            const l = 0.299*data[i] + 0.587*data[i+1] + 0.114*data[i+2];
+            lumSum += l; lumSqSum += l*l; n++;
+        }
+        const uniqueColors = colorSet.size;
+        const contrast = n > 0 ? Math.sqrt(lumSqSum/n - (lumSum/n)**2) : 0;
+        const imgW = src.width || 64;
+
+        // 判定ロジック
+        let gs, qs, mc, reason;
+        // Pixel Size: 画像幅に応じて
+        gs = imgW > 400 ? 12 : imgW > 200 ? 8 : 6;
+        // 色数が少ない（イラスト・ロゴ系）
+        if (uniqueColors < 80) {
+            qs = 16; mc = Math.min(uniqueColors + 4, 24);
+            reason = `イラスト系 (${uniqueColors}色) → Steps ${qs} / Colors ${mc}`;
+        // 色数が多い（写真系）
+        } else if (uniqueColors > 300) {
+            qs = 48; mc = 32;
+            reason = `写真系 (${uniqueColors}色) → Steps ${qs} / Colors ${mc}`;
+        // 中間
+        } else {
+            qs = 32; mc = 16;
+            reason = `標準 (${uniqueColors}色) → Steps ${qs} / Colors ${mc}`;
+        }
+        // コントラストが高い場合はStepsを粗くしてもきれい
+        if (contrast > 80 && qs > 16) { qs = Math.max(16, qs - 16); reason += ' +高コントラスト'; }
+
+        applySettings(gs, qs, mc, `自動: Pixel ${gs} / Steps ${qs} / Colors ${mc} [${reason}]`);
+    }
+ // チェック選択中の色
 
     // ---- クロップ矩形（HTML要素方式）----
     function showCropRect() {
