@@ -632,6 +632,14 @@
     "url": "https://api.github.com/repos/dpolyglot0310-star/assets/git/blobs/db596c7c94685b5002088516bd1e18ed02a9b7d6"
   },
   {
+    "path": "assets/98_season/01_spring/.bk/02_wagasi_01_00.png",
+    "mode": "100644",
+    "type": "blob",
+    "sha": "26888f436844261b6e3e128a1502bc67514b3684",
+    "size": 1153132,
+    "url": "https://api.github.com/repos/dpolyglot0310-star/assets/git/blobs/26888f436844261b6e3e128a1502bc67514b3684"
+  },
+  {
     "path": "assets/98_season/01_spring/01_yozakura_05_01.png",
     "mode": "100644",
     "type": "blob",
@@ -654,22 +662,6 @@
     "sha": "3ee258562e9c2e8ac0d2c21ca23fe65f8d9c6d9c",
     "size": 78255,
     "url": "https://api.github.com/repos/dpolyglot0310-star/assets/git/blobs/3ee258562e9c2e8ac0d2c21ca23fe65f8d9c6d9c"
-  },
-  {
-    "path": "assets/98_season/01_spring/01_yozakura_05_02a.png",
-    "mode": "100644",
-    "type": "blob",
-    "sha": "1693fb12967bcbbdb0b03e7a3791c2007901e3fa",
-    "size": 30674,
-    "url": "https://api.github.com/repos/dpolyglot0310-star/assets/git/blobs/1693fb12967bcbbdb0b03e7a3791c2007901e3fa"
-  },
-  {
-    "path": "assets/98_season/01_spring/01_yozakura_05_02b.png",
-    "mode": "100644",
-    "type": "blob",
-    "sha": "0ce6a30f085e8117b878dce1ca6f792cee7f024c",
-    "size": 44974,
-    "url": "https://api.github.com/repos/dpolyglot0310-star/assets/git/blobs/0ce6a30f085e8117b878dce1ca6f792cee7f024c"
   },
   {
     "path": "assets/98_season/01_spring/01_yozakura_13_01.png",
@@ -704,14 +696,6 @@
     "url": "https://api.github.com/repos/dpolyglot0310-star/assets/git/blobs/15d129ffd14a48dd7aa53933195a87d35bfea608"
   },
   {
-    "path": "assets/98_season/01_spring/02_wagasi_01_00.png",
-    "mode": "100644",
-    "type": "blob",
-    "sha": "26888f436844261b6e3e128a1502bc67514b3684",
-    "size": 1153132,
-    "url": "https://api.github.com/repos/dpolyglot0310-star/assets/git/blobs/26888f436844261b6e3e128a1502bc67514b3684"
-  },
-  {
     "path": "assets/98_season/01_spring/02_wagasi_01_01.png",
     "mode": "100644",
     "type": "blob",
@@ -742,6 +726,22 @@
     "sha": "050dd26ac339f778dcd0798c8a0acb100171b233",
     "size": 7543848,
     "url": "https://api.github.com/repos/dpolyglot0310-star/assets/git/blobs/050dd26ac339f778dcd0798c8a0acb100171b233"
+  },
+  {
+    "path": "assets/999_base/shirt_uv_m.png",
+    "mode": "100644",
+    "type": "blob",
+    "sha": "cc6341d549679c3607535dd401bcb1c759d529a2",
+    "size": 1797986,
+    "url": "https://api.github.com/repos/dpolyglot0310-star/assets/git/blobs/cc6341d549679c3607535dd401bcb1c759d529a2"
+  },
+  {
+    "path": "assets/999_base/shirt_uv_m2.png",
+    "mode": "100644",
+    "type": "blob",
+    "sha": "e8ad06fa5eeba701527075500ec156102ed29db9",
+    "size": 1619820,
+    "url": "https://api.github.com/repos/dpolyglot0310-star/assets/git/blobs/e8ad06fa5eeba701527075500ec156102ed29db9"
   },
   {
     "path": "assets/99_other/prompt.png",
