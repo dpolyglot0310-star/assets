@@ -215,34 +215,52 @@
             if (showGuide) {
                 p.push();
                 
-                // 背景色が暗いなら白、明るいなら黒をガイド色にする（可読性アップ）
+                // 背景色(bgColor)の明るさを判定して、文字色を自動決定
                 const bgLume = lum(p, bgColor);
-                const guideColor = bgLume > 128 ? p.color(0, 0, 0, 180) : p.color(255, 255, 255, 180);
-                const accentColor = p.color(255, 255, 0); // 基準点(0)だけは目立つ色
+                const mainColor = bgLume > 128 ? p.color(0, 150) : p.color(255, 180);
+                const accentColor = p.color(255, 255, 0); // 10刻みと0は目立つ黄色
 
-                // 基準点のハイライト（背景色に対して目立つ色で）
-                p.noFill();
-                p.stroke(accentColor);
-                p.strokeWeight(1);
-                p.rect(originCol * gridSize, originRow * gridSize, gridSize, gridSize);
-
-                // テキスト設定
-                p.textSize(Math.max(9, gridSize * 0.4));
                 p.textAlign(p.CENTER, p.CENTER);
 
-                // --- 横方向の連番 ---
+                // --- 横方向の連番 (X軸) ---
                 for (let x = 0; x < cols; x++) {
-                    let dist = x - originCol;
-                    p.fill(dist === 0 ? accentColor : guideColor);
-                    // 背景色から浮き出るように、少しズラして表示
-                    p.text(dist, x * gridSize + gridSize/2, originRow * gridSize - gridSize/2);
+                    let diff = Math.abs(x - originCol); // 絶対値でマイナスを消す
+                    if (diff === 0) {
+                        p.fill(accentColor);
+                        p.textSize(Math.max(10, gridSize * 0.5));
+                        p.text("0", x * gridSize + gridSize/2, originRow * gridSize - gridSize/2);
+                    } else {
+                        // 10, 20, 30... のときはそのまま、それ以外は1桁目(diff % 10)を表示
+                        let displayText = (diff % 10 === 0) ? diff : (diff % 10);
+                        
+                        // 10刻みは少し大きく、色を変える
+                        if (diff % 10 === 0) {
+                            p.fill(accentColor);
+                            p.textSize(Math.max(10, gridSize * 0.5));
+                        } else {
+                            p.fill(mainColor);
+                            p.textSize(Math.max(8, gridSize * 0.35));
+                        }
+                        p.text(displayText, x * gridSize + gridSize/2, originRow * gridSize - gridSize/2);
+                    }
                 }
 
-                // --- 縦方向の連番 ---
+                // --- 縦方向の連番 (Y軸) ---
                 for (let y = 0; y < rows; y++) {
-                    let dist = y - originRow;
-                    p.fill(dist === 0 ? accentColor : guideColor);
-                    p.text(dist, originCol * gridSize + gridSize * 1.5, y * gridSize + gridSize/2);
+                    let diff = Math.abs(y - originRow);
+                    if (diff === 0) continue; // 0はX軸側で描画済み
+
+                    let displayText = (diff % 10 === 0) ? diff : (diff % 10);
+                    
+                    if (diff % 10 === 0) {
+                        p.fill(accentColor);
+                        p.textSize(Math.max(10, gridSize * 0.5));
+                    } else {
+                        p.fill(mainColor);
+                        p.textSize(Math.max(8, gridSize * 0.35));
+                    }
+                    // 基準ドットの右側に縦に並べる
+                    p.text(displayText, originCol * gridSize + gridSize * 1.5, y * gridSize + gridSize/2);
                 }
                 
                 p.pop();
