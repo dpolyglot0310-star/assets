@@ -29,7 +29,7 @@ async function generate() {
         });
 
         // 4. JSONとして書き出し
-        fs.writeFileSync('list.json', JSON.stringify(assetData, null, 2));
+        fs.writeFileSync('assets/list.json', JSON.stringify(assetData, null, 2));
         console.log(`Success: ${assetData.length} items found. Saved to list.json`);
     } catch (e) {
         console.error("Error during generation:", e);
