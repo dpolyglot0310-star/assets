@@ -1,6 +1,8 @@
 // ---- Pixel Indexer ----
     let pixelApp = null;
     let p5Loaded = false;
+    
+    let showGuide = false; // ガイド表示のON/OFF
 
     function toHexStr(r, g, b) {
         return '#' + [r,g,b].map(v => Math.max(0,Math.min(255,v|0)).toString(16).padStart(2,'0')).join('');
@@ -196,31 +198,42 @@
                 }
 
             // --- ここから追加：ガイド・基準点表示モード ---
-            const showGuide = true; // あとでスイッチ（チェックボックス等）に連動させると便利
             if (showGuide) {
-                // 1. センター十字線 (基準点)
-                p.stroke(255, 0, 0, 150); // 半透明の赤
-                p.strokeWeight(1);
-                p.line(p.width / 2, 0, p.width / 2, p.height); // 縦線
-                p.line(0, p.height / 2, p.width, p.height / 2); // 横線
+                const centerX = p.floor(cols / 2);
+                const centerY = p.floor(rows / 2);
 
-                // 2. ドット数情報の表示 (左上にオーバーレイ)
+                // 1. 基準線の描画（中心を通る十字線）
+                p.stroke(255, 50, 50, 200); // 少し強めの赤
+                p.strokeWeight(2);
+                p.line(centerX * gridSize, 0, centerX * gridSize, p.height);
+                p.line(0, centerY * gridSize, p.width, centerY * gridSize);
+
+                // 2. 連番（距離）の表示
                 p.noStroke();
-                p.fill(0, 0, 0, 180); // 黒背景
-                p.rect(5, 5, 100, 45, 5); // 小さなパネル
-                
-                p.fill(255);
-                p.textAlign(p.LEFT, p.TOP);
-                p.textSize(12);
-                // cols, rows は p.draw 内で計算済みの変数を使用
-                p.text(`Size: ${cols} x ${rows} dot`, 10, 10);
-                p.text(`Grid: ${gridSize} px/dot`, 10, 28);
+                p.textSize(gridSize * 0.5); // グリッドサイズに合わせた文字の大きさ
+                p.textAlign(p.CENTER, p.CENTER);
 
-                // 3. 10ドットごとの目盛り (任意)
-                p.stroke(255, 255, 255, 50); // 薄い白
-                for(let x=0; x<cols; x+=10) {
-                    p.line(x * gridSize, 0, x * gridSize, 10);
+                // 横方向の連番（中心から左右へ）
+                for (let x = 0; x < cols; x++) {
+                    let dist = x - centerX; // 中心からの距離
+                    p.fill(255, 255, 255, 150);
+                    // 数字が重ならないよう、中心線付近に表示
+                    p.text(dist, x * gridSize + gridSize / 2, centerY * gridSize - 10);
                 }
+
+                // 縦方向の連番（中心から上下へ）
+                for (let y = 0; y < rows; y++) {
+                    let dist = y - centerY;
+                    p.fill(255, 255, 255, 150);
+                    p.text(dist, centerX * gridSize + 15, y * gridSize + gridSize / 2);
+                }
+
+                // 3. 総ドット数の表示（右下などに固定）
+                p.fill(0, 150);
+                p.rect(p.width - 80, p.height - 25, 75, 20, 5);
+                p.fill(255);
+                p.textSize(10);
+                p.text(`${cols}x${rows} dot`, p.width - 42, p.height - 15);
             }
             // --- 追加ここまで ---
 
@@ -531,6 +544,11 @@
             const r=new FileReader();
             r.onload=ev=>pixelApp.setImage(ev.target.result);
             r.readAsDataURL(e.target.files[0]);
+        };
+        
+        document.getElementById('px-show-guide').onchange = (e) => {
+            showGuide = e.target.checked;
+            pixelApp.redraw(); // 再描画して反映
         };
     }
 
