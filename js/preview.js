@@ -1,6 +1,6 @@
 // --- プレビュー用の変数（送り側と合わせる） ---
 let previewCanvas = null;
-let baseImage = new Image(); // シャツ
+let baseImg = new Image(); // シャツ
 let itemImg = new Image();   // ★これを消さずに使う
 let preX = 0; // X座標
 let preY = 0; // Y座標
@@ -21,7 +21,7 @@ window.addEventListener('DOMContentLoaded', () => {
 		const baseSelector = document.getElementById('base-selector');
 		if (baseSelector) {
 				baseSelector.onchange = (e) => {
-						changeBaseImage(e.target.value);
+						changebaseImg(e.target.value);
 				};
 		}
 
@@ -131,13 +131,13 @@ window.downloadResult = function() {
 /**
  * 【外部読み込み】手持ちの画像をベースにする
  */
-window.uploadBaseImage = function(file) {
+window.uploadbaseImg = function(file) {
     if (!file) return;
     const reader = new FileReader();
     reader.onload = (e) => {
-        // 1. 変数名を統一（baseImg → baseImage）
-        baseImage = new Image(); 
-        baseImage.onload = () => {
+        // 1. 変数名を統一（baseImg → baseImg）
+        baseImg = new Image(); 
+        baseImg.onload = () => {
             // 2. 座標対応版の描画関数を呼ぶ
             renderPreview(); 
             
@@ -146,18 +146,18 @@ window.uploadBaseImage = function(file) {
                 updateThreeJSTexture();
             }
         };
-        baseImage.src = e.target.result;
+        baseImg.src = e.target.result;
     };
     reader.readAsDataURL(file);
 };
 
 // ベースリスト（プルダウン）から選択したときに実行される関数
-window.changeBaseImage = function(url) {
+window.changebaseImg = function(url) {
     if (!url) return;
     
-    // baseImg ではなく統一した baseImage を使う
-    baseImage = new Image(); 
-    baseImage.onload = () => {
+    // baseImg ではなく統一した baseImg を使う
+    baseImg = new Image(); 
+    baseImg.onload = () => {
         // 座標(preX, preY)を保持したまま再描画
         renderPreview();
         
@@ -166,7 +166,7 @@ window.changeBaseImage = function(url) {
             updateThreeJSTexture();
         }
     };
-    baseImage.src = url;
+    baseImg.src = url;
 };
 
 function draw() {
@@ -184,8 +184,8 @@ function renderPreview() {
     ctx.clearRect(0, 0, previewCanvas.width, previewCanvas.height);
     
     // 1. ベース（シャツ）を描画
-    if (baseImage.src) {
-        ctx.drawImage(baseImage, 0, 0, previewCanvas.width, previewCanvas.height);
+    if (baseImg.src) {
+        ctx.drawImage(baseImg, 0, 0, previewCanvas.width, previewCanvas.height);
     }
     
     // 2. アイテム（衣装）を重ねる
