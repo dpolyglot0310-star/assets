@@ -17,6 +17,14 @@ window.addEventListener('DOMContentLoaded', () => {
     if (previewCanvas) {
         initDragEvents(previewCanvas);
     }
+
+		const baseSelector = document.getElementById('base-selector');
+		if (baseSelector) {
+				baseSelector.onchange = (e) => {
+						changeBaseImage(e.target.value);
+				};
+		}
+
 });
 
 window.onload = async () => {
@@ -127,14 +135,38 @@ window.uploadBaseImage = function(file) {
     if (!file) return;
     const reader = new FileReader();
     reader.onload = (e) => {
-        baseImg = new Image();
-        baseImg.onload = () => {
-            draw();
-            if (typeof updateThreeTexture === 'function') updateThreeTexture();
+        // 1. 変数名を統一（baseImg → baseImage）
+        baseImage = new Image(); 
+        baseImage.onload = () => {
+            // 2. 座標対応版の描画関数を呼ぶ
+            renderPreview(); 
+            
+            // 3. 3D側の更新（関数名が updateThreeJS... などに変わっていないか注意）
+            if (typeof updateThreeJSTexture === 'function') {
+                updateThreeJSTexture();
+            }
         };
-        baseImg.src = e.target.result;
+        baseImage.src = e.target.result;
     };
     reader.readAsDataURL(file);
+};
+
+// ベースリスト（プルダウン）から選択したときに実行される関数
+window.changeBaseImage = function(url) {
+    if (!url) return;
+    
+    // baseImg ではなく統一した baseImage を使う
+    baseImage = new Image(); 
+    baseImage.onload = () => {
+        // 座標(preX, preY)を保持したまま再描画
+        renderPreview();
+        
+        // 3D側にも新しいベースを反映
+        if (typeof updateThreeJSTexture === 'function') {
+            updateThreeJSTexture();
+        }
+    };
+    baseImage.src = url;
 };
 
 function draw() {
