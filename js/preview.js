@@ -1,23 +1,21 @@
-let baseImg = new Image();
-let itemImg = new Image();
-let itemX = 0, itemY = 0;
-let canvas, ctx;
+// --- プレビュー用の全変数 ---
+let previewCanvas = null;  // Canvas実体
+let baseImage = new Image(); // シャツ（ベース）画像
+let receivedImage = null;    // エディタから届いたアイテム画像
+let preX = 0; // アイテムの表示位置X（マイナス可）
+let preY = 0; // アイテムの表示位置Y（マイナス可）
 
-// 1. 変数を宣言する
-let previewCanvas;
-let receivedImage = null; // 画像保持用
-let preX = 0;
-let preY = 0;
 let isDraggingPre = false;
 let startMouseX, startMouseY;
 
 // 2. ページが読み込まれたら Canvas の実体を取得する
 window.addEventListener('DOMContentLoaded', () => {
-    // HTMLのIDが "preview-canvas" の場合
+    // Canvasの実体を取得
     previewCanvas = document.getElementById('preview-canvas');
     
-    if (!previewCanvas) {
-        console.error("ID 'preview-canvas' の要素が見つかりません。HTMLを確認してください。");
+    // ドラッグ操作などのイベントリスナーをここにまとめる
+    if (previewCanvas) {
+        initDragEvents(previewCanvas);
     }
 });
 
@@ -148,73 +146,54 @@ function draw() {
 
 // --- 3. 描画関数（これを置き換える） ---
 function renderPreview() {
-    if (!previewCanvas) return; // Canvasが見つからない時は何もしない
-    
+    if (!previewCanvas) return;
     const ctx = previewCanvas.getContext('2d');
     
-    // Canvasを一旦まっさら（透明）にする
+    // 1. 全体をクリア
     ctx.clearRect(0, 0, previewCanvas.width, previewCanvas.height);
     
-    if (!receivedImage) return;
-
-    // 指定された座標（マイナス含む）で画像を描画
-    // これで透明な余白を外側に追い出せるようになります
-    ctx.drawImage(receivedImage, preX, preY);
+    // 2. まずベース（シャツ）を描く (座標 0, 0 固定)
+    if (baseImage.src) {
+        ctx.drawImage(baseImage, 0, 0, previewCanvas.width, previewCanvas.height);
+    }
+    
+    // 3. その上にアイテムを重ねる (座標 preX, preY)
+    if (receivedImage) {
+        ctx.drawImage(receivedImage, preX, preY);
+    }
 }
 
 // preview.js または script 内の関数定義
 window.updatePreviewPos = function() {
-    // 数値を取得して数値化
-    const x = parseInt(document.getElementById('pre-x').value) || 0;
-    const y = parseInt(document.getElementById('pre-y').value) || 0;
+    const inputX = document.getElementById('pre-x');
+    const inputY = document.getElementById('pre-y');
     
-    // プレビュー表示用の変数に代入
-    preX = x;
-    preY = y;
-    
-    // 再描画を実行
-    renderPreview();
+    if (inputX && inputY) {
+        preX = parseInt(inputX.value) || 0;
+        preY = parseInt(inputY.value) || 0;
+        renderPreview();
+    }
 };
 
-window.addEventListener('DOMContentLoaded', () => {
-    const pCanvas = document.getElementById('preview-canvas');
-    if (!pCanvas) return;
-
-    // 初期カーソルを設定
-    pCanvas.style.cursor = 'grab';
-
-    // マウスを押したとき
+// ドラッグイベントの初期化（独立した関数にすると管理しやすい）
+function initDragEvents(pCanvas) {
     pCanvas.addEventListener('mousedown', (e) => {
         isDraggingPre = true;
-        // e.clientX を使うことで、スクロール等に関係なく「マウスの絶対位置」で計算
         startMouseX = e.clientX - preX;
         startMouseY = e.clientY - preY;
-        pCanvas.style.cursor = 'grabbing';
     });
 
-    // マウスを動かしているとき（windowに対して貼ることで、Canvasの外に出ても追従する）
     window.addEventListener('mousemove', (e) => {
         if (!isDraggingPre) return;
-
-        // 座標計算（マイナスを許容）
         preX = e.clientX - startMouseX;
         preY = e.clientY - startMouseY;
 
-        // UI（数値入力欄）への反映
-        const inputX = document.getElementById('pre-x');
-        const inputY = document.getElementById('pre-y');
-        if (inputX) inputX.value = Math.round(preX);
-        if (inputY) inputY.value = Math.round(preY);
-
-        // 再描画
+        document.getElementById('pre-x').value = Math.round(preX);
+        document.getElementById('pre-y').value = Math.round(preY);
         renderPreview();
     });
 
-    // マウスを離したとき
     window.addEventListener('mouseup', () => {
-        if (isDraggingPre) {
-            isDraggingPre = false;
-            pCanvas.style.cursor = 'grab';
-        }
+        isDraggingPre = false;
     });
-});
+}
