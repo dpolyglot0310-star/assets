@@ -25,11 +25,19 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           
-          # 現在の時刻をISO形式でファイルに書き込む
-          date -u +"%Y-%m-%dT%H:%M:%SZ" > assets/last_update.txt
-          
-          # list.json と last_update.txt の両方をステージング
+          # 1. 差分をステージング（list.jsonも含める）
           git add assets/list.json assets/last_update.txt
           
-          # どちらかに差分があればコミットしてPush
-          git diff --cached --quiet || (git commit -m "chore: update assets and timestamp" && git push)
+          # 2. 差分があるかチェック
+          if ! git diff --cached --quiet; then
+            git commit -m "chore: update assets and timestamp"
+            
+            # 3. 【最重要】Push直前にリモートの最新を取り込む
+            # これで「不一致」を自動で解消して自分の更新を一番上に乗せます
+            git pull --rebase origin main
+            
+            # 4. そしてPush
+            git push origin main
+          else
+            echo "No changes to commit"
+          fi
