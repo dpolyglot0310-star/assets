@@ -87,9 +87,9 @@
                 // --- ここで背景色を塗りたい場合 ---
                 // もし「エディタ上の見た目だけ」色をつけたいなら、
                 // p.background ではなく、四角形を一番下に描きます。
-                p.noStroke();
-                p.fill(bgColor); // ここで作業用の背景色（マゼンタ等）を指定
-                p.rect(0, 0, p.width, p.height);
+                // p.noStroke();
+                // p.fill(bgColor); // ここで作業用の背景色（マゼンタ等）を指定
+                // p.rect(0, 0, p.width, p.height);
 
                 const cols=p.floor(drawW/gridSize), rows=p.floor(drawH/gridSize);
                 const temp=rawImg.get(); temp.resize(cols,rows); temp.loadPixels();
