@@ -215,40 +215,34 @@
             if (showGuide) {
                 p.push();
                 
-                // 背景色(bgColor)の明るさを判定して、文字色を自動決定
                 const bgLume = lum(p, bgColor);
                 const mainColor = bgLume > 128 ? p.color(0, 150) : p.color(255, 180);
-                const accentColor = p.color(255, 255, 0); // 10刻みと0は目立つ黄色
+                const accentColor = p.color(255, 255, 0);
 
+                // テキストを上下左右中央揃えに固定
                 p.textAlign(p.CENTER, p.CENTER);
 
-                // --- 横方向の連番 (X軸) ---
+                // --- 横方向 (X軸) ---
                 for (let x = 0; x < cols; x++) {
-                    let diff = Math.abs(x - originCol); // 絶対値でマイナスを消す
-                    if (diff === 0) {
+                    let diff = Math.abs(x - originCol);
+                    let displayText = (diff === 0) ? "0" : (diff % 10 === 0 ? diff : diff % 10);
+
+                    if (diff % 10 === 0) {
                         p.fill(accentColor);
                         p.textSize(Math.max(10, gridSize * 0.5));
-                        p.text("0", x * gridSize + gridSize/2, originRow * gridSize - gridSize/2);
                     } else {
-                        // 10, 20, 30... のときはそのまま、それ以外は1桁目(diff % 10)を表示
-                        let displayText = (diff % 10 === 0) ? diff : (diff % 10);
-                        
-                        // 10刻みは少し大きく、色を変える
-                        if (diff % 10 === 0) {
-                            p.fill(accentColor);
-                            p.textSize(Math.max(10, gridSize * 0.5));
-                        } else {
-                            p.fill(mainColor);
-                            p.textSize(Math.max(8, gridSize * 0.35));
-                        }
-                        p.text(displayText, x * gridSize + gridSize/2, originRow * gridSize - gridSize/2);
+                        p.fill(mainColor);
+                        p.textSize(Math.max(8, gridSize * 0.35));
                     }
+                    
+                    // 基準行(originRow)の「中」に数字を配置して、ドットと直線を合わせる
+                    p.text(displayText, x * gridSize + gridSize/2, originRow * gridSize + gridSize/2);
                 }
 
-                // --- 縦方向の連番 (Y軸) ---
+                // --- 縦方向 (Y軸) ---
                 for (let y = 0; y < rows; y++) {
                     let diff = Math.abs(y - originRow);
-                    if (diff === 0) continue; // 0はX軸側で描画済み
+                    if (diff === 0) continue; // 0はX軸で描画済み
 
                     let displayText = (diff % 10 === 0) ? diff : (diff % 10);
                     
@@ -259,8 +253,9 @@
                         p.fill(mainColor);
                         p.textSize(Math.max(8, gridSize * 0.35));
                     }
-                    // 基準ドットの右側に縦に並べる
-                    p.text(displayText, originCol * gridSize + gridSize * 1.5, y * gridSize + gridSize/2);
+
+                    // 基準列(originCol)の「中」に数字を配置。これで横軸と十字に交差します
+                    p.text(displayText, originCol * gridSize + gridSize/2, y * gridSize + gridSize/2);
                 }
                 
                 p.pop();
