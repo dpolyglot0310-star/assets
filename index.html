@@ -56,6 +56,7 @@
             <button id="px-crop-confirm" style="display:none;background:#28a745;color:white;border:none;padding:5px 12px;border-radius:6px;cursor:pointer;font-size:12px;" onclick="confirmCropUI()">✔ ここで切り出す</button>
             <button id="px-crop-reset" style="display:none;background:#555;color:white;border:none;padding:5px 12px;border-radius:6px;cursor:pointer;font-size:12px;" onclick="resetCropUI()">↩ 全体に戻す</button>
             <button onclick="pixelApp && pixelApp.saveCanvas('pixel','png')" style="background:#444;color:white;border:none;padding:5px 12px;border-radius:6px;cursor:pointer;font-size:12px;">💾 保存</button>
+            <button onclick="sendToPreview()" style="background:#444;color:white;border:none;padding:5px 12px;border-radius:6px;cursor:pointer;font-size:12px;">🖥️ 3Dプレビューへ送信</button>
             <button id="px-undo" disabled onclick="pixelApp && pixelApp.undo()" style="background:#555;color:white;border:none;padding:5px 12px;border-radius:6px;cursor:pointer;font-size:12px;">↩ 戻る</button>
             <button id="px-paint-open" style="display:none;background:#7b2fff;color:white;border:none;padding:5px 12px;border-radius:6px;cursor:pointer;font-size:12px;" onclick="openPaintBar()">🎨 色変更</button>
         </div>

@@ -798,3 +798,18 @@
             redraw();
         }
     };
+
+    // pixel.js の適当な場所に追加
+    window.sendToPreview = function() {
+        const canvas = document.querySelector('canvas'); // p5.jsのキャンバスを取得
+        if (!canvas) return;
+
+        canvas.toBlob((blob) => {
+            const bc = new BroadcastChannel('3d_sync_channel');
+            bc.postMessage({ 
+                type: 'UPDATE_ITEM', 
+                blob: blob 
+            });
+            console.log("Preview sent!");
+        }, 'image/png');
+    };
