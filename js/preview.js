@@ -44,7 +44,7 @@ async function initBaseSelector() {
         // dataが配列（['path/to/a.png', 'path/to/b.png', ... ]）であると想定
         // フィルタリング：assets/base/ を含み、かつ画像ファイル(png/jpg)であるもの
         const baseFiles = data.filter(path => 
-            path.includes('assets/base/') && /\.(png|jpe?g)$/i.test(path)
+            path.includes('assets/999_base/') && /\.(png|jpe?g)$/i.test(path)
         );
 
         baseFiles.forEach(path => {
