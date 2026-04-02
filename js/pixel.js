@@ -75,28 +75,26 @@
             p.draw = () => {
                 if (!rawImg && !sourceImg) { p.background(25); return; }
                 if (!rawImg) { p.background(25); return; }
+
                 const drawW=p.width, drawH=p.floor(drawW/(rawImg.width/rawImg.height));
                 if (p.height!==drawH) { p.resizeCanvas(drawW,drawH); p.redraw(); return; }
+
+                // 【1】まず背景を確認用の色で塗る
                 p.background(bgColor);
+
                 const cols=p.floor(drawW/gridSize), rows=p.floor(drawH/gridSize);
                 const temp=rawImg.get(); temp.resize(cols,rows); temp.loadPixels();
                 const buf=new Float32Array(temp.pixels.length);
-                // 透過ピクセルをBG色で塗りつぶしてから処理
-                const bgC=p.color(bgColor);
-                const bgR=p.red(bgC), bgG=p.green(bgC), bgB=p.blue(bgC);
-                for (let i=0;i<temp.pixels.length;i+=4) {
-                    const a=temp.pixels[i+3];
-                    if (a<128) {
-                        buf[i]=bgR; buf[i+1]=bgG; buf[i+2]=bgB; buf[i+3]=255;
-                    } else {
-                        // 半透明はアルファ合成して不透明化
-                        const af=a/255;
-                        buf[i]  =temp.pixels[i]  *af + bgR*(1-af);
-                        buf[i+1]=temp.pixels[i+1]*af + bgG*(1-af);
-                        buf[i+2]=temp.pixels[i+2]*af + bgB*(1-af);
-                        buf[i+3]=255;
-                    }
+
+                // 【2】元の透明度（Alpha）を維持したまま配列（buf）に格納
+                for (let i=0; i<temp.pixels.length; i+=4) {
+                    buf[i]   = temp.pixels[i];
+                    buf[i+1] = temp.pixels[i+1];
+                    buf[i+2] = temp.pixels[i+2];
+                    buf[i+3] = temp.pixels[i+3]; // ★ここを255にせず、元のままにする
                 }
+
+                // --- 量子化処理（ここは以前と同じ） ---
                 if (!rawMode && useQuant) {
                     if (quantMethod === 'kmeans') {
                         kmeansQuantize(buf, cols, rows, quantizeStep, useDither);
@@ -120,14 +118,13 @@
                         }
                     }
                 }
-                // 量子化後の色を確定してからswapMap適用（順序を統一）
-                // step1: 量子化後の色を全セル分配列に保持
+
                 const quantColors = new Array(cols*rows);
                 for (let j=0;j<cols*rows;j++) {
                     const i=j*4;
                     quantColors[j]=toHexStr(buf[i],buf[i+1],buf[i+2]);
                 }
-                // step2: Max Colors リマップ（rawMode/useMaxColors OFF時はスキップ）
+
                 const paletteSet=new Set();
                 quantColors.forEach(h=>paletteSet.add(h));
                 const sorted=Array.from(paletteSet).sort((a,b)=>lum(p,b)-lum(p,a));
@@ -143,21 +140,34 @@
                         }
                     });
                 }
-                // step3: remap後の色をfinalColorsに確定、swapMapはfinalColorをキーに適用
+
                 const finalColors = quantColors.map(h => remap[h]||h);
-                // step4: 描画
+
+                // 【3】描画（Alphaを考慮して1ピクセルずつ塗る）
                 if (gridLine){p.stroke(gridLineColor);p.strokeWeight(gridLineWeight);}else{p.noStroke();}
                 const finalPalette=new Set();
+
                 for (let y=0;y<rows;y++) for (let x=0;x<cols;x++) {
-                    const fc=finalColors[x+y*cols];
-                    const dh=rawMode ? fc : (swapMap[fc]||fc);
-                    finalPalette.add(dh);
-                    const dc=p.color(dh);
-                    p.fill(!selectedHex||dh===selectedHex ? dc : p.color(p.red(dc)*.2,p.green(dc)*.2,p.blue(dc)*.2));
-                    p.rect(x*gridSize,y*gridSize,gridSize,gridSize);
+                    const idx = x+y*cols;
+                    const i = idx*4;
+                    const fc = finalColors[idx];
+                    const dh = rawMode ? fc : (swapMap[fc]||fc);
+                    const alpha = buf[i+3]; // ★Alphaを取得
+
+                    if (alpha > 10) finalPalette.add(dh); // 透明部分はパレットに入れない
+
+                    const dc = p.color(dh);
+                    let r = p.red(dc), g = p.green(dc), b = p.blue(dc);
+                    
+                    // 非選択色は暗くする
+                    if (selectedHex && dh !== selectedHex) { r*=0.2; g*=0.2; b*=0.2; }
+                    
+                    p.fill(r, g, b, alpha); // ★Alphaを乗せて描画
+                    p.rect(x*gridSize, y*gridSize, gridSize, gridSize);
                 }
+
+                // --- インデックス表示以降（ここはそのまま） ---
                 const finalSorted=Array.from(finalPalette).sort((a,b)=>lum(p,b)-lum(p,a));
-                // インデックス表示
                 if (selectedHex&&gridSize>8) {
                     const si=finalSorted.indexOf(selectedHex);
                     p.textAlign(p.CENTER,p.CENTER); p.textSize(gridSize*.6);
@@ -167,7 +177,6 @@
                         if(dh===selectedHex){p.fill(lum(p,dh)>128?0:255);p.text(si,x*gridSize+gridSize/2,y*gridSize+gridSize/2);}
                     }
                 }
-                // ペイントモード: 選択セルをハイライト
                 if (paintMode==='cell' && paintPendingCells.size>0) {
                     const cols2=p.floor(p.width/gridSize);
                     p.noStroke(); p.fill(255,255,0,120);
