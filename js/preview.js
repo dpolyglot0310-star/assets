@@ -126,3 +126,56 @@ function draw() {
     if (baseImg.complete) ctx.drawImage(baseImg, 0, 0, canvas.width, canvas.height);
     if (itemImg.complete) ctx.drawImage(itemImg, itemX, itemY);
 }
+
+// プレビュー側のグローバル変数
+let preX = 0;
+let preY = 0;
+
+function updatePreviewPos() {
+    // UIから数値を取得（マイナスもOK）
+    preX = parseInt(document.getElementById('pre-x').value) || 0;
+    preY = parseInt(document.getElementById('pre-y').value) || 0;
+    
+    renderPreview(); // 再描画をキック
+}
+
+function renderPreview() {
+    const ctx = previewCanvas.getContext('2d');
+    ctx.clearRect(0, 0, previewCanvas.width, previewCanvas.height);
+    
+    if (!receivedImage) return;
+
+    // 受信した画像を、指定した座標（preX, preY）に描画
+    // 周りの透明部分が邪魔な場合、マイナス値を入れれば外側に押し出せます
+    ctx.drawImage(receivedImage, preX, preY);
+}
+
+let isDraggingPre = false;
+let startX, startY;
+
+const pCanvas = document.getElementById('preview-canvas');
+
+pCanvas.addEventListener('mousedown', (e) => {
+    isDraggingPre = true;
+    startX = e.offsetX - preX;
+    startY = e.offsetY - preY;
+});
+
+window.addEventListener('mousemove', (e) => {
+    if (!isDraggingPre) return;
+    
+    // マウス位置から現在の座標を逆算
+    const rect = pCanvas.getBoundingClientRect();
+    preX = (e.clientX - rect.left) - startX;
+    preY = (e.clientY - rect.top) - startY;
+
+    // UIの数値表示を更新
+    document.getElementById('pre-x').value = Math.round(preX);
+    document.getElementById('pre-y').value = Math.round(preY);
+
+    renderPreview();
+});
+
+window.addEventListener('mouseup', () => {
+    isDraggingPre = false;
+});
