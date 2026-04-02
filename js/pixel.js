@@ -212,54 +212,66 @@
                 }
 
             // --- ここから追加：ガイド・基準点表示モード ---
+
             if (showGuide) {
                 p.push();
                 
-                const bgLume = lum(p, bgColor);
-                const mainColor = bgLume > 128 ? p.color(0, 150) : p.color(255, 180);
-                const accentColor = p.color(255, 255, 0);
+                // ガイドのメインカラー（黄色と白）
+                const accentColor = p.color(255, 255, 0); // 0, 10, 20...
+                const subColor = p.color(255, 255, 255);  // 1, 2, 3...
+                // 縁取りの色（ユーザーが選んだ背景色 #px-bg）
+                const edgeColor = p.color(bgColor);
 
-                // テキストを上下左右中央揃えに固定
                 p.textAlign(p.CENTER, p.CENTER);
+
+                // 縦横のループを共通化して描画
+                const drawGuideText = (val, x, y, isAccent) => {
+                    const txt = (val === 0) ? "0" : (val % 10 === 0 ? val : val % 10);
+                    const size = isAccent ? Math.max(10, gridSize * 0.5) : Math.max(8, gridSize * 0.35);
+                    const col = isAccent ? accentColor : subColor;
+
+                    p.textSize(size);
+
+                    // 1. 縁取りを描画（背景色で上下左右に少しずらして書く）
+                    p.fill(edgeColor);
+                    for(let offX = -1; offX <= 1; offX++) {
+                        for(let offY = -1; offY <= 1; offY++) {
+                            if(offX === 0 && offY === 0) continue;
+                            p.text(txt, x + offX, y + offY);
+                        }
+                    }
+
+                    // 2. メインの文字を描画
+                    p.fill(col);
+                    p.text(txt, x, y);
+                };
 
                 // --- 横方向 (X軸) ---
                 for (let x = 0; x < cols; x++) {
                     let diff = Math.abs(x - originCol);
-                    let displayText = (diff === 0) ? "0" : (diff % 10 === 0 ? diff : diff % 10);
-
-                    if (diff % 10 === 0) {
-                        p.fill(accentColor);
-                        p.textSize(Math.max(10, gridSize * 0.5));
-                    } else {
-                        p.fill(mainColor);
-                        p.textSize(Math.max(8, gridSize * 0.35));
-                    }
-                    
-                    // 基準行(originRow)の「中」に数字を配置して、ドットと直線を合わせる
-                    p.text(displayText, x * gridSize + gridSize/2, originRow * gridSize + gridSize/2);
+                    drawGuideText(
+                        diff, 
+                        x * gridSize + gridSize/2, 
+                        originRow * gridSize + gridSize/2, 
+                        diff % 10 === 0
+                    );
                 }
 
                 // --- 縦方向 (Y軸) ---
                 for (let y = 0; y < rows; y++) {
                     let diff = Math.abs(y - originRow);
-                    if (diff === 0) continue; // 0はX軸で描画済み
-
-                    let displayText = (diff % 10 === 0) ? diff : (diff % 10);
-                    
-                    if (diff % 10 === 0) {
-                        p.fill(accentColor);
-                        p.textSize(Math.max(10, gridSize * 0.5));
-                    } else {
-                        p.fill(mainColor);
-                        p.textSize(Math.max(8, gridSize * 0.35));
-                    }
-
-                    // 基準列(originCol)の「中」に数字を配置。これで横軸と十字に交差します
-                    p.text(displayText, originCol * gridSize + gridSize/2, y * gridSize + gridSize/2);
+                    if (diff === 0) continue; // 0は重複するのでスキップ
+                    drawGuideText(
+                        diff, 
+                        originCol * gridSize + gridSize/2, 
+                        y * gridSize + gridSize/2, 
+                        diff % 10 === 0
+                    );
                 }
                 
                 p.pop();
             }
+
             // --- 追加ここまで ---
 
 
