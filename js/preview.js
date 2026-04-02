@@ -1,9 +1,9 @@
-// --- プレビュー用の全変数 ---
-let previewCanvas = null;  // Canvas実体
-let baseImage = new Image(); // シャツ（ベース）画像
-let receivedImage = null;    // エディタから届いたアイテム画像
-let preX = 0; // アイテムの表示位置X（マイナス可）
-let preY = 0; // アイテムの表示位置Y（マイナス可）
+// --- プレビュー用の変数（送り側と合わせる） ---
+let previewCanvas = null;
+let baseImage = new Image(); // シャツ
+let itemImg = new Image();   // ★これを消さずに使う
+let preX = 0; // X座標
+let preY = 0; // Y座標
 
 let isDraggingPre = false;
 let startMouseX, startMouseY;
@@ -149,17 +149,17 @@ function renderPreview() {
     if (!previewCanvas) return;
     const ctx = previewCanvas.getContext('2d');
     
-    // 1. 全体をクリア
     ctx.clearRect(0, 0, previewCanvas.width, previewCanvas.height);
     
-    // 2. まずベース（シャツ）を描く (座標 0, 0 固定)
+    // 1. ベース（シャツ）を描画
     if (baseImage.src) {
         ctx.drawImage(baseImage, 0, 0, previewCanvas.width, previewCanvas.height);
     }
     
-    // 3. その上にアイテムを重ねる (座標 preX, preY)
-    if (receivedImage) {
-        ctx.drawImage(receivedImage, preX, preY);
+    // 2. アイテム（衣装）を重ねる
+    // 送られてきた itemImg を使い、新しく作った preX, preY で位置を決める
+    if (itemImg && itemImg.src) {
+        ctx.drawImage(itemImg, preX, preY);
     }
 }
 
