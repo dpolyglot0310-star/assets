@@ -38,6 +38,7 @@
                     const nw = container.parentElement.clientWidth;
                     if (nw > 0 && nw !== p.width) {
                         p.resizeCanvas(nw, p.height);
+                        p.clear(); // ★リサイズ直後も透明にリセット
                         // クロップ矩形表示中なら中央に再配置
                         if (document.getElementById('crop-rect').style.display !== 'none') showCropRect();
                         p.redraw();
