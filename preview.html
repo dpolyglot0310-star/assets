@@ -5,47 +5,69 @@
     <title>3D Costume Preview</title>
     <link rel="stylesheet" href="css/style.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/0.160.0/three.min.js"></script>
+    <style>
+        /* プレビュー用キャンバスのスタイル：格子柄（透過確認用） */
+        #preview-canvas {
+            border: 1px solid #555;
+            cursor: grab; /* 掴めることを示す */
+            background-image: 
+                linear-gradient(45deg, #444 25%, transparent 25%, transparent 75%, #444 75%, #444 100%),
+                linear-gradient(45deg, #444 25%, #333 25%, #333 75%, #444 75%, #444 100%);
+            background-size: 20px 20px;
+            background-position: 0 0, 10px 10px;
+        }
+        #preview-canvas:active { cursor: grabbing; }
+        
+        .ui-panel { background: #222; color: #fff; padding: 15px; margin-top: 10px; border-radius: 4px; }
+        .input-group { margin-bottom: 10px; display: flex; align-items: center; gap: 10px; }
+        .input-group input { width: 60px; background: #444; color: #fff; border: 1px solid #666; padding: 3px; }
+        hr { border: 0; border-top: 1px solid #444; margin: 15px 0; }
+        button { cursor: pointer; padding: 5px 10px; }
+    </style>
 </head>
 <body>
 
-<div class="preview-controls">
-  <div class="input-group">
-    <label>位置 X:</label>
-    <input type="number" id="pre-x" value="0" oninput="updatePreviewPos()">
-    <label>位置 Y:</label>
-    <input type="number" id="pre-y" value="0" oninput="updatePreviewPos()">
-  </div>
-</div>
-
-<div style="display: flex; gap: 20px; padding: 20px;">
-    <div>
-        <h3>2D Layout</h3>
-        <canvas id="preview-canvas" width="512" height="512" style="border:1px solid #555; background: #333;"></canvas>
+<div style="display: flex; gap: 20px; padding: 20px; align-items: flex-start;">
+    
+    <section>
+        <h3>2D Layout (Drag to Move)</h3>
+        <canvas id="preview-canvas" width="512" height="512"></canvas>
 
         <div class="ui-panel">
-            <label>X座標: <input type="range" id="posX" min="0" max="512" value="0"></label><br>
-            <label>Y座標: <input type="range" id="posY" min="0" max="512" value="0"></label><br>
-            
-            <button onclick="mergeToLayer()">配置を確定してベースへ統合</button>
-            <button onclick="downloadResult()">最終結果をダウンロード</button>
-            
-            <hr>
-<div class="ui-panel">
-    <p>ベース画像を選択:</p>
-    <select id="base-selector"></select> 
-    
-    <hr>
-    </div>
-            <hr>
-            <p>ベース画像の変更:</p>
-            <input type="file" onchange="uploadBaseImage(this.files[0])">
-        </div>
-    </div>
+            <div class="preview-controls">
+                <div class="input-group">
+                    <label>位置 X:</label>
+                    <input type="number" id="pre-x" value="0" oninput="updatePreviewPos()">
+                    <label style="margin-left:10px;">位置 Y:</label>
+                    <input type="number" id="pre-y" value="0" oninput="updatePreviewPos()">
+                </div>
+            </div>
 
-    <div>
+            <div style="display: flex; gap: 5px;">
+                <button onclick="mergeToLayer()">配置確定・統合</button>
+                <button onclick="downloadResult()">ダウンロード</button>
+            </div>
+            
+            <hr>
+
+            <div class="base-image-settings">
+                <div class="input-group">
+                    <label>ベース選択:</label>
+                    <select id="base-selector" style="flex-grow: 1;"></select>
+                </div>
+                <div class="input-group">
+                    <label>画像読込:</label>
+                    <input type="file" onchange="uploadBaseImage(this.files[0])" style="font-size: 12px;">
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section>
         <h3>3D View</h3>
         <div id="3d-container" style="width: 512px; height: 512px; border: 1px solid #555; background: #000;"></div>
-    </div>
+    </section>
+
 </div>
 
 <script src="./js/preview.js" defer></script>
