@@ -32,6 +32,7 @@
             p.setup = () => {
                 const w = container.parentElement.clientWidth || 640;
                 p.createCanvas(w, 400);
+                p.clear(); // 初期状態を透明にする
                 p.noLoop();
                 new ResizeObserver(() => {
                     const nw = container.parentElement.clientWidth;
@@ -73,14 +74,21 @@
             };
 
             p.draw = () => {
-                if (!rawImg && !sourceImg) { p.background(25); return; }
-                if (!rawImg) { p.background(25); return; }
+                p.clear();
+                if (!rawImg && !sourceImg) { return; } // background(25)は消す
+                if (!rawImg) { return; }
+
 
                 const drawW=p.width, drawH=p.floor(drawW/(rawImg.width/rawImg.height));
                 if (p.height!==drawH) { p.resizeCanvas(drawW,drawH); p.redraw(); return; }
 
                 // 【1】まず背景を確認用の色で塗る
-                p.background(bgColor);
+                // --- ここで背景色を塗りたい場合 ---
+                // もし「エディタ上の見た目だけ」色をつけたいなら、
+                // p.background ではなく、四角形を一番下に描きます。
+                p.noStroke();
+                p.fill(bgColor); // ここで作業用の背景色（マゼンタ等）を指定
+                p.rect(0, 0, p.width, p.height);
 
                 const cols=p.floor(drawW/gridSize), rows=p.floor(drawH/gridSize);
                 const temp=rawImg.get(); temp.resize(cols,rows); temp.loadPixels();
