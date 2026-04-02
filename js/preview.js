@@ -4,6 +4,8 @@ let baseImg = new Image(); // シャツ
 let itemImg = new Image();   // ★これを消さずに使う
 let preX = 0; // X座標
 let preY = 0; // Y座標
+let itemX = 0;
+let itemY = 0;
 
 let isDraggingPre = false;
 let startMouseX, startMouseY;
