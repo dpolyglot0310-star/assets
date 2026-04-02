@@ -213,35 +213,39 @@
 
             // --- ここから追加：ガイド・基準点表示モード ---
             if (showGuide) {
-                p.push(); // 描画設定を一時保存
+                p.push();
                 
-                // 基準点のハイライト
+                // 背景色が暗いなら白、明るいなら黒をガイド色にする（可読性アップ）
+                const bgLume = lum(p, bgColor);
+                const guideColor = bgLume > 128 ? p.color(0, 0, 0, 180) : p.color(255, 255, 255, 180);
+                const accentColor = p.color(255, 255, 0); // 基準点(0)だけは目立つ色
+
+                // 基準点のハイライト（背景色に対して目立つ色で）
                 p.noFill();
-                p.stroke(255, 255, 0); // 黄色
+                p.stroke(accentColor);
                 p.strokeWeight(1);
                 p.rect(originCol * gridSize, originRow * gridSize, gridSize, gridSize);
 
                 // テキスト設定
-                p.textSize(Math.max(8, gridSize * 0.4));
+                p.textSize(Math.max(9, gridSize * 0.4));
                 p.textAlign(p.CENTER, p.CENTER);
 
                 // --- 横方向の連番 ---
                 for (let x = 0; x < cols; x++) {
                     let dist = x - originCol;
-                    if (dist === 0) p.fill(255, 255, 0); else p.fill(255, 200);
-                    // 数字が重ならないよう、基準行の少し上に表示
+                    p.fill(dist === 0 ? accentColor : guideColor);
+                    // 背景色から浮き出るように、少しズラして表示
                     p.text(dist, x * gridSize + gridSize/2, originRow * gridSize - gridSize/2);
                 }
 
                 // --- 縦方向の連番 ---
                 for (let y = 0; y < rows; y++) {
                     let dist = y - originRow;
-                    if (dist === 0) p.fill(255, 255, 0); else p.fill(255, 200);
-                    // 基準列の少し横に表示
+                    p.fill(dist === 0 ? accentColor : guideColor);
                     p.text(dist, originCol * gridSize + gridSize * 1.5, y * gridSize + gridSize/2);
                 }
                 
-                p.pop(); // 設定を元に戻す
+                p.pop();
             }
             // --- 追加ここまで ---
 
