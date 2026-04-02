@@ -22,3 +22,4 @@ Thumbs.db
 # *.pdf
 .vscode/
 assets/list.json
+assets/last_update.txt
