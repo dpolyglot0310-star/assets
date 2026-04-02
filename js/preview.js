@@ -43,9 +43,12 @@ async function initBaseSelector() {
 
         // dataが配列（['path/to/a.png', 'path/to/b.png', ... ]）であると想定
         // フィルタリング：assets/base/ を含み、かつ画像ファイル(png/jpg)であるもの
-        const baseFiles = data.filter(path => 
-            path.includes('./assets/assets/999_base/') && /\.(png|jpe?g)$/i.test(path)
-        );
+        // initBaseSelector 内の修正
+          const baseFiles = data.filter(item => {
+          // item が文字列ならそのまま、オブジェクトなら .path や .url を見る
+            const path = typeof item === 'string' ? item : (item.path || item.url || "");
+            return path.includes('assets/999_base/') && /\.(png|jpe?g)$/i.test(path);
+          }).map(item => typeof item === 'string' ? item : (item.path || item.url)); // パス文字列のみの配列に変換
 
         baseFiles.forEach(path => {
             const fileName = path.split('/').pop();
