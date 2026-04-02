@@ -13,18 +13,23 @@ window.addEventListener('DOMContentLoaded', () => {
     // Canvasの実体を取得
     previewCanvas = document.getElementById('preview-canvas');
     
-    // ドラッグ操作などのイベントリスナーをここにまとめる
+    // ドラッグ操作などのイベントリスナーを登録
     if (previewCanvas) {
         initDragEvents(previewCanvas);
     }
 
-		const baseSelector = document.getElementById('base-selector');
-		if (baseSelector) {
-				baseSelector.onchange = (e) => {
-						changebaseImg(e.target.value);
-				};
-		}
+    const baseSelector = document.getElementById('base-selector');
+    if (baseSelector) {
+        baseSelector.onchange = (e) => {
+            changebaseImg(e.target.value);
+        };
 
+        // --- ここから追加：初期値の読み込み ---
+        // セレクターに最初から入っている値（URL）を使って1枚目を読み込む
+        if (baseSelector.value) {
+            changebaseImg(baseSelector.value);
+        }
+    }
 });
 
 window.onload = async () => {
