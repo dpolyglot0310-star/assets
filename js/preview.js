@@ -1,38 +1,33 @@
-/**
- * 3D Preview & Layering System
- * 構成: Base Layer (背景) + Item Layer (エディタからの画像)
- */
-
-let baseImg = new Image();   // 確定済みの土台（assets/base/ から読み込み、または統合済み画像）
-let itemImg = new Image();   // エディタから届いた最新のパーツ
-let itemX = 0;               // パーツの表示座標X
-let itemY = 0;               // パーツの表示座標Y
-
-// キャンバス要素の保持
+let baseImg = new Image();
+let itemImg = new Image();
+let itemX = 0, itemY = 0;
 let canvas, ctx;
 
-// js/preview.js
-
-window.onload = async () => { // asyncをつけると内部でawaitが使えます
+window.onload = async () => {
     canvas = document.getElementById('preview-canvas');
+    if (!canvas) return;
     ctx = canvas.getContext('2d');
 
-    // 1. JSONからベースリストを取得してセレクトボックスを作る
+    // 1. ベース選択肢の初期化
     await initBaseSelector(); 
 
-    // 2. BroadcastChannel の受信設定 (既存)
-    initBC(); 
+    // 2. 通信設定 (BroadcastChannel)
+    const bc = new BroadcastChannel('3d_sync_channel');
+    bc.onmessage = (e) => {
+        if (e.data.type === 'UPDATE_ITEM') {
+            const url = URL.createObjectURL(e.data.blob);
+            itemImg.src = url;
+            itemImg.onload = () => draw();
+        }
+    };
 
-    // 3. UI（スライダーなど）の初期化 (既存)
+    // 3. UI設定
     initUI();
 
-    // 4. Three.js の初期化 (既存)
+    // 4. 3D設定 (Three.jsがある場合)
     if (typeof init3D === 'function') init3D();
 };
 
-/**
- * list.json から assets/base/ 内の画像を抽出してセレクトボックスを作成
- */
 async function initBaseSelector() {
     const select = document.getElementById('base-selector');
     if (!select) return;
@@ -41,14 +36,11 @@ async function initBaseSelector() {
         const response = await fetch('./list.json');
         const data = await response.json();
 
-        // dataが配列（['path/to/a.png', 'path/to/b.png', ... ]）であると想定
-        // フィルタリング：assets/base/ を含み、かつ画像ファイル(png/jpg)であるもの
-        // initBaseSelector 内の修正
-          const baseFiles = data.filter(item => {
-          // item が文字列ならそのまま、オブジェクトなら .path や .url を見る
-            const path = typeof item === 'string' ? item : (item.path || item.url || "");
+        // オブジェクト配列でも文字列配列でも対応できるようにガード
+        const baseFiles = data.filter(item => {
+            const path = typeof item === 'string' ? item : (item.path || "");
             return path.includes('assets/999_base/') && /\.(png|jpe?g)$/i.test(path);
-          }).map(item => typeof item === 'string' ? item : (item.path || item.url)); // パス文字列のみの配列に変換
+        }).map(item => typeof item === 'string' ? item : item.path);
 
         baseFiles.forEach(path => {
             const fileName = path.split('/').pop();
@@ -58,90 +50,79 @@ async function initBaseSelector() {
             select.appendChild(option);
         });
 
-        // 最初の1枚を初期ベースとして読み込む
         if (baseFiles.length > 0) {
             baseImg.src = baseFiles[0];
             baseImg.onload = () => draw();
         }
 
-        // 選択が切り替わった時の処理
         select.onchange = (e) => {
             baseImg.src = e.target.value;
-            // 読み込み完了後に再描画
             baseImg.onload = () => draw();
         };
-
     } catch (err) {
         console.error("ベースリストの取得に失敗しました:", err);
     }
 }
 
-function draw() {
-    if (!ctx) return;
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    // ベース画像があれば描く、なければ背景色を塗る
-    if (baseImg.complete && baseImg.width > 0) {
-        ctx.drawImage(baseImg, 0, 0, canvas.width, canvas.height);
-    } else {
-        ctx.fillStyle = "#333"; // 暗いグレーを背景にする
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-    }
-
-    // アイテム（エディタからの画像）を重ねる
-    if (itemImg.complete && itemImg.src) {
-        ctx.drawImage(itemImg, itemX, itemY);
-    }
-}
-
-/**
- * UI操作用の関数
- */
 function initUI() {
-    // スライダー操作
     const sliderX = document.getElementById('posX');
     const sliderY = document.getElementById('posY');
-
     if (sliderX) sliderX.oninput = (e) => { itemX = parseInt(e.target.value); draw(); };
     if (sliderY) sliderY.oninput = (e) => { itemY = parseInt(e.target.value); draw(); };
 }
 
 /**
- * 【統合】現在の重ね合わせをベース画像として確定する
+ * 【統合】現在の配置をベース画像に焼き付ける
  */
 window.mergeToLayer = function() {
     if (!confirm("現在の配置をベース画像に統合しますか？")) return;
 
-    // 現在の表示内容（Base + Item）をDataURLとして取得
+    // キャンバスの内容を新しいベース画像として差し替える
     const mergedData = canvas.toDataURL("image/png");
     
-    // 新しいベースとしてセット
+    baseImg = new Image(); // 参照を新しくする
+    baseImg.onload = () => {
+        // 統合されたので、載せていたアイテム画像は空にする
+        itemImg = new Image(); 
+        draw();
+        
+        // ★重要：3Dテクスチャもこのタイミングで「更新が必要」と伝える
+        if (typeof updateThreeTexture === 'function') updateThreeTexture();
+    };
     baseImg.src = mergedData;
     
-    // アイテム側をクリア（統合されたので）
-    itemImg = new Image();
-    
-    alert("ベースを更新しました。次のパーツを待機中です。");
-    draw();
+    alert("ベースに統合しました。エディタからの次の送信を待機します。");
 };
 
 /**
- * 【保存】現在の合成結果をPNGでダウンロード
+ * 【保存】現在のキャンバスをPNGとして書き出し
  */
 window.downloadResult = function() {
     const link = document.createElement('a');
-    link.download = 'merged_texture.png';
+    link.download = `merged_texture_${Date.now()}.png`; // 重複防止に時間を付与
     link.href = canvas.toDataURL("image/png");
     link.click();
 };
 
 /**
- * 【外部読み込み】ベース画像をローカルファイルから変更する
+ * 【外部読み込み】手持ちの画像をベースにする
  */
 window.uploadBaseImage = function(file) {
+    if (!file) return;
     const reader = new FileReader();
     reader.onload = (e) => {
+        baseImg = new Image();
+        baseImg.onload = () => {
+            draw();
+            if (typeof updateThreeTexture === 'function') updateThreeTexture();
+        };
         baseImg.src = e.target.result;
     };
     reader.readAsDataURL(file);
 };
+
+function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    if (baseImg.complete) ctx.drawImage(baseImg, 0, 0, canvas.width, canvas.height);
+    if (itemImg.complete) ctx.drawImage(itemImg, itemX, itemY);
+}
