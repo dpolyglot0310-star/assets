@@ -194,6 +194,37 @@
                         p.rect(cx*gridSize,cy*gridSize,gridSize,gridSize);
                     });
                 }
+
+            // --- ここから追加：ガイド・基準点表示モード ---
+            const showGuide = true; // あとでスイッチ（チェックボックス等）に連動させると便利
+            if (showGuide) {
+                // 1. センター十字線 (基準点)
+                p.stroke(255, 0, 0, 150); // 半透明の赤
+                p.strokeWeight(1);
+                p.line(p.width / 2, 0, p.width / 2, p.height); // 縦線
+                p.line(0, p.height / 2, p.width, p.height / 2); // 横線
+
+                // 2. ドット数情報の表示 (左上にオーバーレイ)
+                p.noStroke();
+                p.fill(0, 0, 0, 180); // 黒背景
+                p.rect(5, 5, 100, 45, 5); // 小さなパネル
+                
+                p.fill(255);
+                p.textAlign(p.LEFT, p.TOP);
+                p.textSize(12);
+                // cols, rows は p.draw 内で計算済みの変数を使用
+                p.text(`Size: ${cols} x ${rows} dot`, 10, 10);
+                p.text(`Grid: ${gridSize} px/dot`, 10, 28);
+
+                // 3. 10ドットごとの目盛り (任意)
+                p.stroke(255, 255, 255, 50); // 薄い白
+                for(let x=0; x<cols; x+=10) {
+                    p.line(x * gridSize, 0, x * gridSize, 10);
+                }
+            }
+            // --- 追加ここまで ---
+
+
                 renderPxPalette(finalSorted,selectedHex,swapMap);
             };
 
