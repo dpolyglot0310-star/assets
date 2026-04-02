@@ -23,7 +23,7 @@
         pixelApp = new p5(function(p) {
             let sourceImg = null, rawImg = null, selectedHex = null, swapMap = {};
             let history = [], historyMax = 20;
-            let gridSize = 10, quantizeStep = 32, useDither = true, useQuant = true, quantMethod = 'uniform', rawMode = false, bgColor = '#000000';
+            let gridSize = 10, quantizeStep = 32, useDither = true, useQuant = true, quantMethod = 'uniform', rawMode = false, bgColor = '#ff00ff';
             let gridLine = false, gridLineColor = '#333333', gridLineWeight = 1;
             let maxColors = 256, useMaxColors = true;
             let paintMode = null; // 'cell' | 'rect' | null
