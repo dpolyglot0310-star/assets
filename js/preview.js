@@ -15,51 +15,40 @@ window.onload = () => {
     canvas = document.getElementById('preview-canvas');
     ctx = canvas.getContext('2d');
 
-    // 1. 初期のベース画像を読み込み (パスはHTMLから見た相対パス)
-    // ここに用意した「素体」や「型紙」のファイル名を指定してください
-    baseImg.src = './assets/base/body_uv.png'; 
-    baseImg.onload = () => {
-        console.log("Base image loaded.");
+    // ベース画像を一旦「空」で初期化
+    // もし assets/base/body_uv.png がなくてもエラーにならないようにする
+    baseImg.onload = () => draw();
+    baseImg.onerror = () => {
+        console.log("Base image not found. Starting with empty canvas.");
+        // 画像がない場合は、とりあえずグレーの背景で描画を開始
         draw();
     };
+    
+    // パスを指定（ファイルがなくても onerror が助けてくれます）
+    baseImg.src = './assets/base/body_uv.png'; 
 
-    // 2. エディタ(index.html)からのデータ受信設定
-    const bc = new BroadcastChannel('3d_sync_channel');
-    bc.onmessage = (e) => {
-        if (e.data.type === 'UPDATE_ITEM') {
-            // 届いたBlobから一時的なURLを生成して読み込む
-            const url = URL.createObjectURL(e.data.blob);
-            itemImg.src = url;
-            itemImg.onload = () => {
-                console.log("New item received from editor.");
-                draw();
-            };
-        }
-    };
-
-    // UIイベントの紐付け（HTML側にIDがある前提）
+    // 通信とUIの初期化はそのまま
+    initBC(); 
     initUI();
+    if (typeof init3D === 'function') init3D();
 };
 
-/**
- * 描画メインロジック
- */
 function draw() {
-    if (!canvas) return;
-
-    // キャンバスをクリア
+    if (!ctx) return;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // 1. 下層：ベース画像を描画
-    ctx.drawImage(baseImg, 0, 0, canvas.width, canvas.height);
+    // ベース画像があれば描く、なければ背景色を塗る
+    if (baseImg.complete && baseImg.width > 0) {
+        ctx.drawImage(baseImg, 0, 0, canvas.width, canvas.height);
+    } else {
+        ctx.fillStyle = "#333"; // 暗いグレーを背景にする
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+    }
 
-    // 2. 上層：届いたアイテムを重ねて描画
+    // アイテム（エディタからの画像）を重ねる
     if (itemImg.complete && itemImg.src) {
         ctx.drawImage(itemImg, itemX, itemY);
     }
-
-    // 3. 3Dモデルへの反映 (Three.js実装後にここを有効化)
-    // updateThreeJSTexture(canvas);
 }
 
 /**
