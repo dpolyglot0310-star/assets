@@ -39,7 +39,7 @@ async function initBaseSelector() {
         // オブジェクト配列でも文字列配列でも対応できるようにガード
         const baseFiles = data.filter(item => {
             const path = typeof item === 'string' ? item : (item.path || "");
-            return path.includes('assets/999_base/') && /\.(png|jpe?g)$/i.test(path);
+            return path.includes('assets/assets/999_base/') && /\.(png|jpe?g)$/i.test(path);
         }).map(item => typeof item === 'string' ? item : item.path);
 
         baseFiles.forEach(path => {
