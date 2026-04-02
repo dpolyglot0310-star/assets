@@ -40,13 +40,31 @@ window.onload = async () => {
     // 1. ベース選択肢の初期化
     await initBaseSelector(); 
 
-    // 2. 通信設定 (BroadcastChannel)
+		// 2. 通信設定 (BroadcastChannel)
     const bc = new BroadcastChannel('3d_sync_channel');
     bc.onmessage = (e) => {
         if (e.data.type === 'UPDATE_ITEM') {
+            // エディタ側から送られてきた座標を preX, preY に代入
+            // e.data.itemX が無い場合は 0 を入れる
+            preX = e.data.itemX || 0;
+            preY = e.data.itemY || 0;
+
+            // HTMLの入力欄（数値）も連動させる
+            const inputX = document.getElementById('pre-x');
+            const inputY = document.getElementById('pre-y');
+            if (inputX) inputX.value = Math.round(preX);
+            if (inputY) inputY.value = Math.round(preY);
+
+            // 画像の処理
             const url = URL.createObjectURL(e.data.blob);
             itemImg.src = url;
-            itemImg.onload = () => draw();
+            
+            // 読み込み完了後に「座標対応版」の描画を呼ぶ
+            itemImg.onload = () => {
+                renderPreview(); // draw() から名前を変えた場合はこちら
+                // URLオブジェクトはメモリ節約のため解放
+                URL.revokeObjectURL(url);
+            };
         }
     };
 
