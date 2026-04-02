@@ -11,27 +11,67 @@ let itemY = 0;               // パーツの表示座標Y
 // キャンバス要素の保持
 let canvas, ctx;
 
-window.onload = () => {
+// js/preview.js
+
+window.onload = async () => { // asyncをつけると内部でawaitが使えます
     canvas = document.getElementById('preview-canvas');
     ctx = canvas.getContext('2d');
 
-    // ベース画像を一旦「空」で初期化
-    // もし assets/base/body_uv.png がなくてもエラーにならないようにする
-    baseImg.onload = () => draw();
-    baseImg.onerror = () => {
-        console.log("Base image not found. Starting with empty canvas.");
-        // 画像がない場合は、とりあえずグレーの背景で描画を開始
-        draw();
-    };
-    
-    // パスを指定（ファイルがなくても onerror が助けてくれます）
-    baseImg.src = './assets/base/body_uv.png'; 
+    // 1. JSONからベースリストを取得してセレクトボックスを作る
+    await initBaseSelector(); 
 
-    // 通信とUIの初期化はそのまま
+    // 2. BroadcastChannel の受信設定 (既存)
     initBC(); 
+
+    // 3. UI（スライダーなど）の初期化 (既存)
     initUI();
+
+    // 4. Three.js の初期化 (既存)
     if (typeof init3D === 'function') init3D();
 };
+
+/**
+ * list.json から assets/base/ 内の画像を抽出してセレクトボックスを作成
+ */
+async function initBaseSelector() {
+    const select = document.getElementById('base-selector');
+    if (!select) return;
+
+    try {
+        const response = await fetch('./list.json');
+        const data = await response.json();
+
+        // dataが配列（['path/to/a.png', 'path/to/b.png', ... ]）であると想定
+        // フィルタリング：assets/base/ を含み、かつ画像ファイル(png/jpg)であるもの
+        const baseFiles = data.filter(path => 
+            path.includes('assets/base/') && /\.(png|jpe?g)$/i.test(path)
+        );
+
+        baseFiles.forEach(path => {
+            const fileName = path.split('/').pop();
+            const option = document.createElement('option');
+            option.value = path;
+            option.textContent = fileName;
+            select.appendChild(option);
+        });
+
+        // 最初の1枚を初期ベースとして読み込む
+        if (baseFiles.length > 0) {
+            baseImg.src = baseFiles[0];
+            baseImg.onload = () => draw();
+        }
+
+        // 選択が切り替わった時の処理
+        select.onchange = (e) => {
+            baseImg.src = e.target.value;
+            // 読み込み完了後に再描画
+            baseImg.onload = () => draw();
+        };
+
+    } catch (err) {
+        console.error("ベースリストの取得に失敗しました:", err);
+    }
+}
 
 function draw() {
     if (!ctx) return;
