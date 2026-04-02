@@ -31,7 +31,7 @@
 
             p.setup = () => {
                 const w = container.parentElement.clientWidth || 640;
-                p.createCanvas(w, 400);
+                p.createCanvas(w, 400, p.P2D);
                 p.clear(); // 初期状態を透明にする
                 p.noLoop();
                 new ResizeObserver(() => {

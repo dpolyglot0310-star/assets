@@ -37,7 +37,21 @@ img, video { max-width: 100%; max-height: 100%; object-fit: contain; }
 /* --- Pixel Indexer --- */
 #pixel-panel { display: none; background: #121212; border-radius: 12px; padding: 20px; color: #eee; }
 #pixel-panel.active { display: block; }
-.px-canvas-wrap { border: 2px solid #444; background: #000; margin-bottom: 12px; overflow: auto; max-height: 60vh; position: relative; }
+.px-canvas-wrap {
+    border: 2px solid #444;
+    /* 背景を黒(#000)から格子柄に変更 */
+    background-color: #eee;
+    background-image: 
+        linear-gradient(45deg, #fff 25%, transparent 25%, transparent 75%, #fff 75%, #fff 100%),
+        linear-gradient(45deg, #fff 25%, #eee 25%, #eee 75%, #fff 75%, #fff 100%);
+    background-size: 20px 20px;
+    background-position: 0 0, 10px 10px;
+    
+    margin-bottom: 12px;
+    overflow: auto;
+    max-height: 60vh;
+    position: relative;
+}
 #crop-overlay { display:none; position:absolute; top:0; left:0; width:100%; height:100%; pointer-events:none; }
 #crop-rect { display:none; position:absolute; border:2px solid #ff5000; box-sizing:border-box; pointer-events:auto; cursor:move; }
 #crop-rect::before { content:''; position:absolute; inset:0; background:transparent; }
