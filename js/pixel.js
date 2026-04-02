@@ -3,6 +3,8 @@
     let p5Loaded = false;
     
     let showGuide = false; // ガイド表示のON/OFF
+    let originCol = 0; // 基準となる列(X)
+    let originRow = 0; // 基準となる行(Y)
 
     function toHexStr(r, g, b) {
         return '#' + [r,g,b].map(v => Math.max(0,Math.min(255,v|0)).toString(16).padStart(2,'0')).join('');
@@ -63,7 +65,19 @@
                     p.redraw();
                 };
                 p.canvas.addEventListener('mousedown', (e) => {
-                    if (paintMode==='cell') { e.preventDefault(); handleCellPaint(getPos(e)); return; }
+                    const pos = getPos(e);
+                    // 【追加】描画モードでないときは、クリックした場所を基準点(Origin)にする
+                    if (paintMode !== 'cell') {
+                        originCol = p.floor(pos.x / gridSize);
+                        originRow = p.floor(pos.y / gridSize);
+                        p.redraw(); // 連番表示を更新するために再描画
+                    }
+                    // 既存の描画処理
+                    if (paintMode === 'cell') {
+                        e.preventDefault();
+                        handleCellPaint(pos);
+                        return;
+                    }
                 });
                 p.canvas.addEventListener('mousemove', (e) => {
                     if (paintMode==='cell' && e.buttons===1) { e.preventDefault(); handleCellPaint(getPos(e)); return; }
@@ -199,41 +213,35 @@
 
             // --- ここから追加：ガイド・基準点表示モード ---
             if (showGuide) {
-                const centerX = p.floor(cols / 2);
-                const centerY = p.floor(rows / 2);
+                p.push(); // 描画設定を一時保存
+                
+                // 基準点のハイライト
+                p.noFill();
+                p.stroke(255, 255, 0); // 黄色
+                p.strokeWeight(1);
+                p.rect(originCol * gridSize, originRow * gridSize, gridSize, gridSize);
 
-                // 1. 基準線の描画（中心を通る十字線）
-                p.stroke(255, 50, 50, 200); // 少し強めの赤
-                p.strokeWeight(2);
-                p.line(centerX * gridSize, 0, centerX * gridSize, p.height);
-                p.line(0, centerY * gridSize, p.width, centerY * gridSize);
-
-                // 2. 連番（距離）の表示
-                p.noStroke();
-                p.textSize(gridSize * 0.5); // グリッドサイズに合わせた文字の大きさ
+                // テキスト設定
+                p.textSize(Math.max(8, gridSize * 0.4));
                 p.textAlign(p.CENTER, p.CENTER);
 
-                // 横方向の連番（中心から左右へ）
+                // --- 横方向の連番 ---
                 for (let x = 0; x < cols; x++) {
-                    let dist = x - centerX; // 中心からの距離
-                    p.fill(255, 255, 255, 150);
-                    // 数字が重ならないよう、中心線付近に表示
-                    p.text(dist, x * gridSize + gridSize / 2, centerY * gridSize - 10);
+                    let dist = x - originCol;
+                    if (dist === 0) p.fill(255, 255, 0); else p.fill(255, 200);
+                    // 数字が重ならないよう、基準行の少し上に表示
+                    p.text(dist, x * gridSize + gridSize/2, originRow * gridSize - gridSize/2);
                 }
 
-                // 縦方向の連番（中心から上下へ）
+                // --- 縦方向の連番 ---
                 for (let y = 0; y < rows; y++) {
-                    let dist = y - centerY;
-                    p.fill(255, 255, 255, 150);
-                    p.text(dist, centerX * gridSize + 15, y * gridSize + gridSize / 2);
+                    let dist = y - originRow;
+                    if (dist === 0) p.fill(255, 255, 0); else p.fill(255, 200);
+                    // 基準列の少し横に表示
+                    p.text(dist, originCol * gridSize + gridSize * 1.5, y * gridSize + gridSize/2);
                 }
-
-                // 3. 総ドット数の表示（右下などに固定）
-                p.fill(0, 150);
-                p.rect(p.width - 80, p.height - 25, 75, 20, 5);
-                p.fill(255);
-                p.textSize(10);
-                p.text(`${cols}x${rows} dot`, p.width - 42, p.height - 15);
+                
+                p.pop(); // 設定を元に戻す
             }
             // --- 追加ここまで ---
 
