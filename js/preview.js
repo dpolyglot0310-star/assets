@@ -131,13 +131,19 @@ function draw() {
 let preX = 0;
 let preY = 0;
 
-function updatePreviewPos() {
-    // UIから数値を取得（マイナスもOK）
-    preX = parseInt(document.getElementById('pre-x').value) || 0;
-    preY = parseInt(document.getElementById('pre-y').value) || 0;
+// preview.js または script 内の関数定義
+window.updatePreviewPos = function() {
+    // 数値を取得して数値化
+    const x = parseInt(document.getElementById('pre-x').value) || 0;
+    const y = parseInt(document.getElementById('pre-y').value) || 0;
     
-    renderPreview(); // 再描画をキック
-}
+    // プレビュー表示用の変数に代入
+    preX = x;
+    preY = y;
+    
+    // 再描画を実行
+    renderPreview();
+};
 
 function renderPreview() {
     const ctx = previewCanvas.getContext('2d');
@@ -151,31 +157,39 @@ function renderPreview() {
 }
 
 let isDraggingPre = false;
-let startX, startY;
+let startMouseX, startMouseY;
 
-const pCanvas = document.getElementById('preview-canvas');
+const pCanvas = document.getElementById('preview-canvas'); // プレビュー用CanvasのID
 
+// マウスを押したとき
 pCanvas.addEventListener('mousedown', (e) => {
     isDraggingPre = true;
-    startX = e.offsetX - preX;
-    startY = e.offsetY - preY;
+    // クリックした位置と現在の画像位置の差分を記録
+    startMouseX = e.clientX - preX;
+    startMouseY = e.clientY - preY;
+    pCanvas.style.cursor = 'grabbing';
 });
 
+// マウスを動かしているとき
 window.addEventListener('mousemove', (e) => {
     if (!isDraggingPre) return;
-    
-    // マウス位置から現在の座標を逆算
-    const rect = pCanvas.getBoundingClientRect();
-    preX = (e.clientX - rect.left) - startX;
-    preY = (e.clientY - rect.top) - startY;
 
-    // UIの数値表示を更新
+    // 新しい座標を計算（マイナスも制限なし）
+    preX = e.clientX - startMouseX;
+    preY = e.clientY - startMouseY;
+
+    // HTML側の数値入力欄も更新（連動させる）
     document.getElementById('pre-x').value = Math.round(preX);
     document.getElementById('pre-y').value = Math.round(preY);
 
-    renderPreview();
+    // 再描画（あなたの環境の描画関数を呼ぶ）
+    if (typeof renderPreview === 'function') {
+        renderPreview();
+    }
 });
 
+// マウスを離したとき
 window.addEventListener('mouseup', () => {
     isDraggingPre = false;
+    pCanvas.style.cursor = 'grab';
 });
