@@ -1051,45 +1051,22 @@
         }
     }
 
-    // 減色の実行ロジック
+    // 減色の実行ボタン
     document.getElementById('btn-apply-preset').onclick = () => {
         if (activeMasterColors.size === 0) return alert("色を選択してください");
+        if (!pixelApp) return;
 
-        // activeMasterColors (Set) を [[r,g,b], [r,g,b]] の形式に戻す
-        const targetPalette = Array.from(activeMasterColors).map(s => s.split(',').map(Number));
+        // 1. HTML側のプルダウン（量子化手法）を 'preset' に強制変更する
+        const methodSelect = document.getElementById('px-quant-method');
+        methodSelect.value = 'preset';
 
-        // pixelApp (または p5インスタンス) のpixelsを操作
-        const p = pixelApp.p; // pixelAppがp5インスタンスを保持している想定
-        p.loadPixels();
+        // 2. 「減色を使用する」チェックボックスをオンにする
+        document.getElementById('px-quant').checked = true;
+
+        // 3. すでにある更新関数を呼ぶ
+        // これにより、内部で pixelApp.pxUpdate() が走り、p.draw の「preset」ロジックが発動します
+        pxUpdate(); 
         
-        for (let i = 0; i < p.pixels.length; i += 4) {
-            if (p.pixels[i + 3] === 0) continue; // 透明ドットは無視
-
-            const r = p.pixels[i];
-            const g = p.pixels[i+1];
-            const b = p.pixels[i+2];
-
-            let minD = Infinity;
-            let closest = targetPalette[0];
-
-            // 最も近いRGBを探索
-            for (const pal of targetPalette) {
-                const d = Math.pow(r - pal[0], 2) + Math.pow(g - pal[1], 2) + Math.pow(b - pal[2], 2);
-                if (d < minD) {
-                    minD = d;
-                    closest = pal;
-                }
-            }
-
-            p.pixels[i] = closest[0];
-            p.pixels[i+1] = closest[1];
-            p.pixels[i+2] = closest[2];
-        }
-        p.updatePixels();
-        
-        // 減色後に現在の使用色パレット（renderPxPalette）を再描画させる
+        // 任意：パレット表示などを更新する場合
         if (typeof updatePalette === 'function') updatePalette();
     };
-
-    // 初期化実行
-    initMasterPresetTable();
