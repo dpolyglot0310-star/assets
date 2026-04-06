@@ -1051,6 +1051,9 @@
         }
     }
 
+    // 初期化実行
+    initMasterPresetTable();
+
     // 減色の実行ボタン
     document.getElementById('btn-apply-preset').onclick = () => {
         if (activeMasterColors.size === 0) return alert("色を選択してください");
