@@ -175,26 +175,32 @@
                 let finalColors;
 
                 if (!rawMode && quantMethod === 'preset') {
-                    // 1. マスタープリセットモード：チェックされた色だけを抽出
-                    const targetHexes = Array.from(activeMasterColors); // ['#ff0000', ...]
-                    
+                    // 1. activeMasterColors (Set) を [[r,g,b], [r,g,b]] の数値配列に変換
+                    const targetPalettes = Array.from(activeMasterColors).map(str => str.split(',').map(Number));
+
                     finalColors = quantColors.map(h => {
-                        if (targetHexes.length === 0) return h;
-                        if (targetHexes.includes(h)) return h; // 既にプリセット内ならそのまま
+                        if (targetPalettes.length === 0) return h;
 
-                        // プリセットの中で最も近い色を探す
-                        let best = targetHexes[0], bestD = Infinity;
-                        const c = p.color(h), r = p.red(c), g = p.green(c), b = p.blue(c);
+                        // 元のピクセルの色(Hex)をRGBに分解
+                        const c = p.color(h);
+                        const r = p.red(c), g = p.green(c), b = p.blue(c);
 
-                        targetHexes.forEach(th => {
-                            const tc = p.color(th);
-                            const d = (p.red(tc) - r)**2 + (p.green(tc) - g)**2 + (p.blue(tc) - b)**2;
-                            if (d < bestD) {
-                                bestD = d;
-                                best = th;
+                        let minD = Infinity;
+                        let closestRGB = targetPalettes[0];
+
+                        // 最も近いRGBを探索
+                        for (const pal of targetPalettes) {
+                            // 距離の計算
+                            const d = Math.pow(r - pal[0], 2) + Math.pow(g - pal[1], 2) + Math.pow(b - pal[2], 2);
+                            if (d < minD) {
+                                minD = d;
+                                closestRGB = pal;
                             }
-                        });
-                        return best;
+                        }
+
+                        // 見つかったRGBをHex文字列("#rrggbb")に変換して返す
+                        // ※自前の toHexStr があればそれを使用、なければ p.color から変換
+                        return p.color(closestRGB[0], closestRGB[1], closestRGB[2]).toString('#rrggbb');
                     });
                 } else {
                     // 2. 既存のロジック（K-meansやMedian Cutの結果をmaxColorsに絞る）
@@ -1033,6 +1039,7 @@
                 cb.onchange = () => {
                     if (cb.checked) activeMasterColors.add(rgbKey);
                     else activeMasterColors.delete(rgbKey);
+                    pxUpdate();
                 };
             });
 
@@ -1044,6 +1051,7 @@
                     if (groupCb.checked) activeMasterColors.add(ccb.dataset.rgb);
                     else activeMasterColors.delete(ccb.dataset.rgb);
                 });
+                pxUpdate();
             };
 
             groupDiv.appendChild(childGrid);
