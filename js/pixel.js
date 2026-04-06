@@ -875,27 +875,31 @@
 
     function renderPxPalette(palette, selectedHex, swapMap) {
         const div = document.getElementById('px-palette');
+        // まず「使用色数」を表示（エラーで止まってもここまでは出るように）
         div.innerHTML = `<div style="grid-column:1/-1;font-size:11px;color:#aaa;margin-bottom:4px;">使用色数: <b style="color:#00ffcc;">${palette.length}</b></div>`;
 
-        // --- パレットドロップダウンの更新はそのまま ---
-        const sel = document.getElementById('px-bulk-palette');
-        sel.innerHTML = '<option value="">パレットから選択...</option>';
-        palette.forEach((hv, i) => {
-            const opt = document.createElement('option');
-            opt.value = swapMap[hv] || hv;
-            opt.style.background = swapMap[hv] || hv;
-            opt.textContent = `#${i} ${swapMap[hv] || hv}`;
-            sel.appendChild(opt);
-        });
-        sel.onchange = () => { if (sel.value) document.getElementById('px-bulk-color').value = sel.value; };
-
-        // --- 各色チップの生成 ---
         palette.forEach((hv, i) => {
             const sw = swapMap[hv], disp = sw || hv;
             const chip = document.createElement('div');
             chip.className = 'px-chip' + (selectedHex === hv ? ' active' : '');
-            // ★ 右上表示のために relative を追加
-            chip.style.position = 'relative';
+            chip.style.position = 'relative'; 
+
+            // --- ★ マスターパレットの場所(0-1など)を探すロジック ---
+            const findLocation = (targetHex) => {
+                const allMasterCbs = document.querySelectorAll('#px-preset-table input[data-rgb]');
+                for (const mCb of allMasterCbs) {
+                    // マスターの 255,255,255 形式を #ffffff 形式に変換
+                    const rgb = mCb.dataset.rgb.split(',').map(Number);
+                    const hex = "#" + rgb.map(v => v.toString(16).padStart(2, '0')).join('');
+                    
+                    if (hex.toLowerCase() === targetHex.toLowerCase()) {
+                        return mCb.dataset.location || "";
+                    }
+                }
+                return "";
+            };
+            const loc = findLocation(disp);
+            // --------------------------------------------------
 
             const cb = document.createElement('input');
             cb.type = 'checkbox';
@@ -906,27 +910,16 @@
             };
             chip.appendChild(cb);
 
-            // ★ マスターパレット側から location (0-1など) を探す
-            // 背景色(disp)を数値(r,g,b)に戻して、マスターのdataset.rgbと比較します
-            const findLocation = (targetHex) => {
-                const c = p.color(targetHex);
-                const targetRgbStr = `${p.red(c)},${p.green(c)},${p.blue(c)}`;
-                // マスターパレットの全チェックボックスから一致するものを探す
-                const masterCb = document.querySelector(`#px-preset-table input[data-rgb="${targetRgbStr}"]`);
-                return masterCb ? masterCb.dataset.location : "";
-            };
-            const loc = findLocation(disp);
-
             const inner = document.createElement('div');
-            // ★ innerHTMLの中に location 表示用タグを追加
             inner.innerHTML = `
                 <div class="px-box" style="background:${disp}"></div>
-                ${loc ? `<div style="position:absolute; top:2px; right:4px; font-size:9px; color:#00ffcc; font-weight:bold; pointer-events:none; text-shadow:1px 1px 1px #000;">${loc}</div>` : ''}
+                ${loc ? `<div style="position:absolute; top:1px; right:3px; font-size:9px; color:#00ffcc; font-family:monospace; text-shadow:1px 1px 1px #000; pointer-events:none; font-weight:bold;">${loc}</div>` : ''}
                 <b>#${i}</b><br>
                 <input type="color" value="${disp}">
                 ${sw ? `<br><button class="px-reset" data-h="${hv}">↩</button>` : ''}
             `;
 
+            // クリックイベントなどは以前のまま
             inner.querySelector('.px-box').onclick = () => pixelApp.highlight(hv);
             inner.querySelector('input[type="color"]').oninput = e => pixelApp.swap(hv, e.target.value);
             const rb = inner.querySelector('.px-reset');
@@ -935,6 +928,19 @@
             chip.appendChild(inner);
             div.appendChild(chip);
         });
+
+        // ドロップダウン更新（既存の処理）
+        const sel = document.getElementById('px-bulk-palette');
+        if (sel) {
+            sel.innerHTML = '<option value="">パレットから選択...</option>';
+            palette.forEach((hv, i) => {
+                const opt = document.createElement('option');
+                const d = swapMap[hv] || hv;
+                opt.value = d; opt.style.background = d; opt.textContent = `#${i} ${d}`;
+                sel.appendChild(opt);
+            });
+            sel.onchange = () => { if (sel.value) document.getElementById('px-bulk-color').value = sel.value; };
+        }
     }
 
     function updateBulkBar() {
