@@ -6,6 +6,22 @@
     let originCol = 0; // 基準となる列(X)
     let originRow = 0; // 基準となる行(Y)
 
+    // プリセットデータの構造（後でゲームカラーに差し替え）
+    let colorPresets = {
+        "Red System": [
+            { r: 255, g: 100, b: 100, active: true },
+            { r: 200, g: 0, b: 0, active: true }
+        ],
+        "Blue System": [
+            { r: 100, g: 100, b: 255, active: true },
+            { r: 0, g: 0, b: 150, active: true }
+        ],
+        "Greyscale": [
+            { r: 255, g: 255, b: 255, active: true },
+            { r: 0, g: 0, b: 0, active: true }
+        ]
+    };
+
     function toHexStr(r, g, b) {
         return '#' + [r,g,b].map(v => Math.max(0,Math.min(255,v|0)).toString(16).padStart(2,'0')).join('');
     }
@@ -917,3 +933,99 @@
             console.log("Preview sent!");
         }, 'image/png');
     };
+
+
+    function buildPresetTable() {
+        const container = document.getElementById('preset-container');
+        container.innerHTML = ''; // クリア
+
+        for (let groupName in colorPresets) {
+            // --- 親：グループヘッダー ---
+            const groupWrap = document.createElement('div');
+            groupWrap.className = 'preset-group';
+            
+            const groupLabel = document.createElement('label');
+            const groupCheck = document.createElement('input');
+            groupCheck.type = 'checkbox';
+            groupCheck.checked = true;
+            groupCheck.onchange = (e) => toggleGroup(groupName, e.target.checked);
+            
+            groupLabel.appendChild(groupCheck);
+            groupLabel.appendChild(document.createTextNode(` ${groupName}`));
+            groupWrap.appendChild(groupLabel);
+            container.appendChild(groupWrap);
+
+            // --- 子：各色 ---
+            colorPresets[groupName].forEach((color, index) => {
+                const row = document.createElement('div');
+                row.className = 'preset-row';
+                row.style.marginLeft = '20px';
+
+                const check = document.createElement('input');
+                check.type = 'checkbox';
+                check.checked = color.active;
+                check.onchange = (e) => { color.active = e.target.checked; };
+
+                const chip = document.createElement('span');
+                chip.style.display = 'inline-block';
+                chip.style.width = '16px';
+                chip.style.height = '16px';
+                chip.style.backgroundColor = `rgb(${color.r},${color.g},${color.b})`;
+                chip.style.border = '1px solid #ccc';
+                chip.style.margin = '0 5px';
+
+                row.appendChild(check);
+                row.appendChild(chip);
+                row.appendChild(document.createTextNode(`${color.r},${color.g},${color.b}`));
+                container.appendChild(row);
+            });
+        }
+    }
+
+    // グループ一括切り替え
+    function toggleGroup(groupName, state) {
+        colorPresets[groupName].forEach(c => c.active = state);
+        buildPresetTable(); // UI再描画
+    }
+
+    function applyPresetReduction(p5Instance) {
+        // 1. アクティブな色だけをフラットな配列に抽出
+        const activePalette = [];
+        for (let group in colorPresets) {
+            colorPresets[group].forEach(c => {
+                if (c.active) activePalette.push([c.r, c.g, c.b]);
+            });
+        }
+
+        if (activePalette.length === 0) return; // 何も選ばれていない場合は中断
+
+        // 2. キャンバス全ドットに対して処理
+        // ※ 1030pxを想定し、透明度(Alpha)は維持
+        p5Instance.loadPixels();
+        for (let i = 0; i < p5Instance.pixels.length; i += 4) {
+            let r = p5Instance.pixels[i];
+            let g = p5Instance.pixels[i+1];
+            let b = p5Instance.pixels[i+2];
+            let a = p5Instance.pixels[i+3];
+
+            if (a === 0) continue; // 透明ドットはスルー
+
+            // 最も近い色を探す
+            let minDest = Infinity;
+            let chosen = activePalette[0];
+
+            for (let pal of activePalette) {
+                let d = Math.pow(r - pal[0], 2) + Math.pow(g - pal[1], 2) + Math.pow(b - pal[2], 2);
+                if (d < minDest) {
+                    minDest = d;
+                    chosen = pal;
+                }
+            }
+
+            // 置き換え
+            p5Instance.pixels[i]   = chosen[0];
+            p5Instance.pixels[i+1] = chosen[1];
+            p5Instance.pixels[i+2] = chosen[2];
+        }
+        p5Instance.updatePixels();
+    }
