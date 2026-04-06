@@ -875,31 +875,28 @@
 
     function renderPxPalette(palette, selectedHex, swapMap) {
         const div = document.getElementById('px-palette');
-        // まず「使用色数」を表示（エラーで止まってもここまでは出るように）
+        if (!div) return;
+
+        // 1. 使用色数の表示を復活
         div.innerHTML = `<div style="grid-column:1/-1;font-size:11px;color:#aaa;margin-bottom:4px;">使用色数: <b style="color:#00ffcc;">${palette.length}</b></div>`;
 
         palette.forEach((hv, i) => {
             const sw = swapMap[hv], disp = sw || hv;
+            
+            // --- 安全に番号(location)を取得する ---
+            let loc = "";
+            try {
+                // マスターパレットのUIから直接探す（失敗しても無視して次へ進む）
+                const targetRgb = hexToRgbStr(disp); // 下の補助関数を使用
+                const masterItem = document.querySelector(`#px-preset-table input[data-rgb="${targetRgb}"]`);
+                if (masterItem) loc = masterItem.dataset.location || "";
+            } catch (e) { 
+                // 番号取得でエラーが起きても、パレット表示自体は止めない
+            }
+
             const chip = document.createElement('div');
             chip.className = 'px-chip' + (selectedHex === hv ? ' active' : '');
-            chip.style.position = 'relative'; 
-
-            // --- ★ マスターパレットの場所(0-1など)を探すロジック ---
-            const findLocation = (targetHex) => {
-                const allMasterCbs = document.querySelectorAll('#px-preset-table input[data-rgb]');
-                for (const mCb of allMasterCbs) {
-                    // マスターの 255,255,255 形式を #ffffff 形式に変換
-                    const rgb = mCb.dataset.rgb.split(',').map(Number);
-                    const hex = "#" + rgb.map(v => v.toString(16).padStart(2, '0')).join('');
-                    
-                    if (hex.toLowerCase() === targetHex.toLowerCase()) {
-                        return mCb.dataset.location || "";
-                    }
-                }
-                return "";
-            };
-            const loc = findLocation(disp);
-            // --------------------------------------------------
+            chip.style.position = 'relative';
 
             const cb = document.createElement('input');
             cb.type = 'checkbox';
@@ -913,34 +910,31 @@
             const inner = document.createElement('div');
             inner.innerHTML = `
                 <div class="px-box" style="background:${disp}"></div>
-                ${loc ? `<div style="position:absolute; top:1px; right:3px; font-size:9px; color:#00ffcc; font-family:monospace; text-shadow:1px 1px 1px #000; pointer-events:none; font-weight:bold;">${loc}</div>` : ''}
+                ${loc ? `<div style="position:absolute; top:1px; right:3px; font-size:8px; color:#00ffcc; font-weight:bold; text-shadow:1px 1px #000; pointer-events:none;">${loc}</div>` : ''}
                 <b>#${i}</b><br>
                 <input type="color" value="${disp}">
                 ${sw ? `<br><button class="px-reset" data-h="${hv}">↩</button>` : ''}
             `;
 
-            // クリックイベントなどは以前のまま
-            inner.querySelector('.px-box').onclick = () => pixelApp.highlight(hv);
-            inner.querySelector('input[type="color"]').oninput = e => pixelApp.swap(hv, e.target.value);
-            const rb = inner.querySelector('.px-reset');
-            if (rb) rb.onclick = e => { e.stopPropagation(); pixelApp.resetSwap(hv); };
+            // クリックイベント（pixelAppが未定義でも壊れないようにガード）
+            inner.querySelector('.px-box').onclick = () => { if(window.pixelApp) pixelApp.highlight(hv); };
+            inner.querySelector('input[type="color"]').oninput = e => { if(window.pixelApp) pixelApp.swap(hv, e.target.value); };
             
+            const rb = inner.querySelector('.px-reset');
+            if (rb) rb.onclick = e => { e.stopPropagation(); if(window.pixelApp) pixelApp.resetSwap(hv); };
+
             chip.appendChild(inner);
             div.appendChild(chip);
         });
+    }
 
-        // ドロップダウン更新（既存の処理）
-        const sel = document.getElementById('px-bulk-palette');
-        if (sel) {
-            sel.innerHTML = '<option value="">パレットから選択...</option>';
-            palette.forEach((hv, i) => {
-                const opt = document.createElement('option');
-                const d = swapMap[hv] || hv;
-                opt.value = d; opt.style.background = d; opt.textContent = `#${i} ${d}`;
-                sel.appendChild(opt);
-            });
-            sel.onchange = () => { if (sel.value) document.getElementById('px-bulk-color').value = sel.value; };
-        }
+    // 補助関数：Hex(#ffffff) を "255,255,255" 形式に変換する（pを使わない）
+    function hexToRgbStr(hex) {
+        if (!hex || hex[0] !== '#') return "";
+        const r = parseInt(hex.slice(1, 3), 16);
+        const g = parseInt(hex.slice(3, 5), 16);
+        const b = parseInt(hex.slice(5, 7), 16);
+        return `${r},${g},${b}`;
     }
 
     function updateBulkBar() {
