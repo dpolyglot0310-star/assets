@@ -877,7 +877,7 @@
         const div = document.getElementById('px-palette');
         div.innerHTML = `<div style="grid-column:1/-1;font-size:11px;color:#aaa;margin-bottom:4px;">使用色数: <b style="color:#00ffcc;">${palette.length}</b></div>`;
 
-        // パレットドロップダウンを更新
+        // --- パレットドロップダウンの更新はそのまま ---
         const sel = document.getElementById('px-bulk-palette');
         sel.innerHTML = '<option value="">パレットから選択...</option>';
         palette.forEach((hv, i) => {
@@ -887,13 +887,15 @@
             opt.textContent = `#${i} ${swapMap[hv] || hv}`;
             sel.appendChild(opt);
         });
-        // ドロップダウン選択でカラーピッカーに反映
         sel.onchange = () => { if (sel.value) document.getElementById('px-bulk-color').value = sel.value; };
 
+        // --- 各色チップの生成 ---
         palette.forEach((hv, i) => {
             const sw = swapMap[hv], disp = sw || hv;
             const chip = document.createElement('div');
             chip.className = 'px-chip' + (selectedHex === hv ? ' active' : '');
+            // ★ 右上表示のために relative を追加
+            chip.style.position = 'relative';
 
             const cb = document.createElement('input');
             cb.type = 'checkbox';
@@ -904,12 +906,32 @@
             };
             chip.appendChild(cb);
 
+            // ★ マスターパレット側から location (0-1など) を探す
+            // 背景色(disp)を数値(r,g,b)に戻して、マスターのdataset.rgbと比較します
+            const findLocation = (targetHex) => {
+                const c = p.color(targetHex);
+                const targetRgbStr = `${p.red(c)},${p.green(c)},${p.blue(c)}`;
+                // マスターパレットの全チェックボックスから一致するものを探す
+                const masterCb = document.querySelector(`#px-preset-table input[data-rgb="${targetRgbStr}"]`);
+                return masterCb ? masterCb.dataset.location : "";
+            };
+            const loc = findLocation(disp);
+
             const inner = document.createElement('div');
-            inner.innerHTML = `<div class="px-box" style="background:${disp}"></div><b>#${i}</b><br><input type="color" value="${disp}">${sw ? `<br><button class="px-reset" data-h="${hv}">↩</button>` : ''}`;
+            // ★ innerHTMLの中に location 表示用タグを追加
+            inner.innerHTML = `
+                <div class="px-box" style="background:${disp}"></div>
+                ${loc ? `<div style="position:absolute; top:2px; right:4px; font-size:9px; color:#00ffcc; font-weight:bold; pointer-events:none; text-shadow:1px 1px 1px #000;">${loc}</div>` : ''}
+                <b>#${i}</b><br>
+                <input type="color" value="${disp}">
+                ${sw ? `<br><button class="px-reset" data-h="${hv}">↩</button>` : ''}
+            `;
+
             inner.querySelector('.px-box').onclick = () => pixelApp.highlight(hv);
             inner.querySelector('input[type="color"]').oninput = e => pixelApp.swap(hv, e.target.value);
             const rb = inner.querySelector('.px-reset');
             if (rb) rb.onclick = e => { e.stopPropagation(); pixelApp.resetSwap(hv); };
+            
             chip.appendChild(inner);
             div.appendChild(chip);
         });
@@ -1000,12 +1022,14 @@
         container.innerHTML = '';
         activeMasterColors.clear();
 
-        for (const groupName in gameMasterPalette) {
+        // ★ Object.entriesを使って、groupNameと一緒にインデックス(groupIdx)を取得
+        Object.entries(gameMasterPalette).forEach(([groupName, colors], groupIdx) => {
             const groupDiv = document.createElement('div');
             groupDiv.style.marginBottom = '6px';
 
             // 親（グループ）ヘッダー
             const header = document.createElement('label');
+            // ... (スタイル設定はそのまま) ...
             header.style.display = 'flex';
             header.style.alignItems = 'center';
             header.style.background = '#2a2a2a';
@@ -1028,22 +1052,27 @@
             childGrid.style.gap = '3px';
             childGrid.style.padding = '3px 0 3px 12px';
 
-            gameMasterPalette[groupName].forEach(rgb => {
+            // ★ 第2引数で childIdx を取得
+            colors.forEach((rgb, childIdx) => {
                 const rgbKey = rgb.join(',');
-                activeMasterColors.add(rgbKey); // デフォルト全ON
+                activeMasterColors.add(rgbKey);
 
                 const item = document.createElement('label');
                 item.style.display = 'flex';
                 item.style.alignItems = 'center';
                 item.style.fontSize = '10px';
                 item.style.cursor = 'pointer';
+                item.style.position = 'relative'; // ★ 番号表示の基準用
 
                 const cb = document.createElement('input');
                 cb.type = 'checkbox';
                 cb.checked = true;
                 cb.dataset.rgb = rgbKey;
+                // ★ ここで「親番号-子番号」を保存しておく
+                cb.dataset.location = `${groupIdx}-${childIdx}`;
 
                 const chip = document.createElement('div');
+                // ... (チップのスタイル設定) ...
                 chip.style.width = '12px';
                 chip.style.height = '12px';
                 chip.style.background = `rgb(${rgbKey})`;
@@ -1055,7 +1084,6 @@
                 item.appendChild(document.createTextNode(rgbKey));
                 childGrid.appendChild(item);
 
-                // 子の個別切り替え
                 cb.onchange = () => {
                     if (cb.checked) activeMasterColors.add(rgbKey);
                     else activeMasterColors.delete(rgbKey);
@@ -1063,7 +1091,6 @@
                 };
             });
 
-            // 親の全選択/解除
             groupCb.onchange = () => {
                 const childCbs = childGrid.querySelectorAll('input');
                 childCbs.forEach(ccb => {
@@ -1076,7 +1103,7 @@
 
             groupDiv.appendChild(childGrid);
             container.appendChild(groupDiv);
-        }
+        }); // ★ for...in から Object.entries.forEach に変更
     }
 
     // 初期化実行
@@ -1107,3 +1134,33 @@
             setTimeout(updatePalette, 50);
         }
     };
+
+    function updatePresetUnderline() {
+        // 1. px-preset-table 内の全ラベル（色の行）を取得
+        const container = document.getElementById('px-preset-table');
+        if (!container) return;
+        const items = container.querySelectorAll('label');
+
+        items.forEach(item => {
+            const cb = item.querySelector('input[type="checkbox"]');
+            if (!cb || !cb.dataset.rgb) return;
+
+            const rgbKey = cb.dataset.rgb;
+            const chip = item.querySelector('div'); // 色チップ（四角い部分）
+
+            // 2. usedPresetColors に含まれているか判定
+            const isUsed = (typeof usedPresetColors !== 'undefined') && usedPresetColors.has(rgbKey);
+
+            if (isUsed) {
+                // 使われている場合：下線を太くして、不透明度をMAXに
+                item.style.borderBottom = '2px solid #00ffcc'; 
+                item.style.opacity = '1.0';
+                if (chip) chip.style.boxShadow = '0 0 4px #00ffcc';
+            } else {
+                // 使われていない場合：下線を消して、少し薄くする
+                item.style.borderBottom = '2px solid transparent';
+                item.style.opacity = '0.5';
+                if (chip) chip.style.boxShadow = 'none';
+            }
+        });
+    }
