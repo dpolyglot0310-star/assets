@@ -6,6 +6,8 @@
     let originCol = 0; // 基準となる列(X)
     let originRow = 0; // 基準となる行(Y)
 
+    let usedPresetColors = new Set();
+
     // 以下20260406追加
 
     // --- ゲームのカラープリセット（後で中身を差し替え） ---
@@ -183,6 +185,9 @@
                 if (!rawMode && quantMethod === 'preset') {
                     // 1. activeMasterColors (Set) を [[r,g,b], [r,g,b]] の数値配列に変換
                     const targetPalettes = Array.from(activeMasterColors).map(str => str.split(',').map(Number));
+                    
+                    // ★ 使用色を記録するSetをリセット（usedPresetColorsは関数の外で定義しておいてください）
+                    if (typeof usedPresetColors !== 'undefined') usedPresetColors.clear();
 
                     finalColors = quantColors.map(h => {
                         if (targetPalettes.length === 0) return h;
@@ -196,7 +201,6 @@
 
                         // 最も近いRGBを探索
                         for (const pal of targetPalettes) {
-                            // 距離の計算
                             const d = Math.pow(r - pal[0], 2) + Math.pow(g - pal[1], 2) + Math.pow(b - pal[2], 2);
                             if (d < minD) {
                                 minD = d;
@@ -204,10 +208,20 @@
                             }
                         }
 
+                        // ★ 見つかった色の「カンマ区切り文字列」を記録
+                        if (typeof usedPresetColors !== 'undefined') {
+                            usedPresetColors.add(closestRGB.join(','));
+                        }
+
                         // 見つかったRGBをHex文字列("#rrggbb")に変換して返す
-                        // ※自前の toHexStr があればそれを使用、なければ p.color から変換
                         return p.color(closestRGB[0], closestRGB[1], closestRGB[2]).toString('#rrggbb');
                     });
+
+                    // ★ 描画計算が終わった直後にUI（下線）を更新
+                    if (typeof updatePresetUnderline === 'function') {
+                        // 描画サイクル(draw)の最後の方で呼ぶようにスケジュール
+                        setTimeout(updatePresetUnderline, 0);
+                    }
                 } else {
                     // 2. 既存のロジック（K-meansやMedian Cutの結果をmaxColorsに絞る）
                     if (!rawMode && useMaxColors && limited.length < sorted.length) {
