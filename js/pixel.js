@@ -1067,17 +1067,23 @@
         if (activeMasterColors.size === 0) return alert("色を選択してください");
         if (!pixelApp) return;
 
-        // 1. HTML側のプルダウン（量子化手法）を 'preset' に強制変更する
+        // 1. 設定値を変更
         const methodSelect = document.getElementById('px-quant-method');
         methodSelect.value = 'preset';
-
-        // 2. 「減色を使用する」チェックボックスをオンにする
         document.getElementById('px-quant').checked = true;
 
-        // 3. すでにある更新関数を呼ぶ
-        // これにより、内部で pixelApp.pxUpdate() が走り、p.draw の「preset」ロジックが発動します
-        pxUpdate(); 
+        // 2. システム側に更新を通知
+        // ここで内部的に p.redraw() が呼ばれていない場合、画面が変わりません
+        if (typeof pxUpdate === 'function') {
+            pxUpdate(); 
+        }
+
+        // 3. 強制的に p5 の draw を一回実行させる（これが重要！）
+        pixelApp.redraw(); 
         
-        // 任意：パレット表示などを更新する場合
-        if (typeof updatePalette === 'function') updatePalette();
+        // 4. パレット表示の更新
+        if (typeof updatePalette === 'function') {
+            // 少し遅らせて実行すると、描画完了後の色が確実に取得できます
+            setTimeout(updatePalette, 50);
+        }
     };
