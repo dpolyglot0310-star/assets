@@ -1,0 +1,1155 @@
+// ---- Pixel Indexer ----
+    let pixelApp = null;
+    let p5Loaded = false;
+    
+    let showGuide = false; // ガイド表示のON/OFF
+    let originCol = 0; // 基準となる列(X)
+    let originRow = 0; // 基準となる行(Y)
+
+    // 以下20260406追加
+
+    let usedPresetColors = new Set();
+
+    // --- 仮想キャンバス（論理データ） ---
+    let virtualCanvas = null; // p5.Imageオブジェクト (実データ: 幅=ドット数, 高さ=ドット数)
+    let originalImage = null; // 読み込んだままの原寸画像 (リサイズ、クロップのソース)
+    let displayScale = 1.0;    // 画面に表示する際の拡大率
+
+    // --- 状態管理 ---
+    let dotWidth  = 0; // ドット化された後の横幅 (px)
+    let dotHeight = 0; // ドット化された後の縦幅 (px)
+
+    // --- パレット・処理用 ---
+    let currentPalette = []; // 現在の画像から抽出された全色 (#hex)
+    let swapMap = {};        // { [元の色]: [変更後の色] }
+
+
+    // --- ゲームのカラープリセット（後で中身を差し替え） ---
+    const gameMasterPalette = {
+        "白黒系統": [[4,22,22],[64,68,69],[128,130,129],[191,193,192],[255,255,255]],
+        "赤系統": [[208, 52, 76],[239,110,114],[166,38,61],[245,172,166],[202,132,132],[163,93,95],[105,49,60],[232,214,214],[192,172,171],[116,95,94]],
+        "橙系統": [[244,158,21],[254,179,59],[177,110,23],[255,207,145],[219,167,109],[179,129,76],[120,81,38],[245,227,207],[206,188,168],[128,111,95]],
+        "黄系統": [[238,201,22],[251,217,57],[179,148,23],[250,230,143],[211,190,109],[171,149,74],[117,98,39],[239,230,199],[198,191,162],[120,114,90]],
+        "黄緑系統": [[167,188,21],[182,201,49],[116,134,22],[216,223,146],[172,183,107],[133,144,75],[84,94,42],[229,233,200],[188,193,163],[111,116,94]],
+        "緑系統": [[5,162,93],[65,185,123],[5,117,71],[156,217,173],[118,178,140],[80,137,104],[37,86,64],[196,223,204],[156,183,166],[84,104,93]],
+        "青緑系統": [[4,135,129],[5,171,161],[5,103,102],[125,205,192],[87,164,156],[45,126,120],[5,75,75],[191,223,218],[152,183,178],[77,106,102]],
+        "青系統":[[6,94,166],[45,131,192],[5,69,130],[132,168,202],[93,128,160],[55,91,127],[25,59,86],[192,205,214],[156,166,176],[76,90,103]],
+        "青紫系統": [[129,62,141],[160,104,169],[95,43,107],[184,155,185],[145,115,149],[108,78,116],[67,46,75],[208,201,209],[171,161,172],[97,86,102]],
+        "赤紫系統": [[174,52,111],[208,106,143],[134,37,88],[218,161,180],[180,121,139],[140,82,104],[96,52,75],[226,214,218],[189,173,176],[114,94,103]]
+    };
+
+    // 選択されているRGBを管理するSet（文字列化して保持）
+    let activeMasterColors = new Set();
+
+    // ここまで20260406
+
+    function toHexStr(r, g, b) {
+        return '#' + [r,g,b].map(v => Math.max(0,Math.min(255,v|0)).toString(16).padStart(2,'0')).join('');
+    }
+
+    function initPixel() {
+        if (pixelApp) return; // 初期化済み
+        if (!p5Loaded) {
+            const s = document.createElement('script');
+            s.src = 'https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js';
+            s.onload = () => { p5Loaded = true; _buildPixelApp(); };
+            document.head.appendChild(s);
+        } else {
+            _buildPixelApp();
+        }
+    }
+
+    function _buildPixelApp() {
+        const container = document.getElementById('pixel-app-container');
+        pixelApp = new p5(function(p) {
+            let sourceImg = null, rawImg = null, selectedHex = null, swapMap = {};
+            let history = [], historyMax = 20;
+            let gridSize = 10, quantizeStep = 32, useDither = true, useQuant = true, quantMethod = 'uniform', rawMode = false, bgColor = '#ff00ff';
+            let gridLine = false, gridLineColor = '#333333', gridLineWeight = 1;
+            let maxColors = 256, useMaxColors = true;
+            let paintMode = null; // 'cell' | 'rect' | null
+            let paintPendingCells = new Set(); // セル選択モードで選択中のセル
+
+            p.generateVirtualCanvas = (img, gridSize) => {
+                if (!img) return;
+
+                // 1. ドット数の計算 (例: 400px / Grid 8 = 50ドット)
+                dotWidth  = Math.floor(img.width / gridSize);
+                dotHeight = Math.floor(img.height / gridSize);
+
+                // 2. 仮想キャンバスの作成 (1px = 1ドットの実サイズ)
+                let temp = img.get();
+                temp.resize(dotWidth, dotHeight); // ここで「低解像度化」を確定させる
+                
+                virtualCanvas = temp;
+                p.redraw();
+            };
+
+            p.setup = () => {
+                const w = container.parentElement.clientWidth || 640;
+                p.createCanvas(w, 400, p.P2D);
+                p.clear(); // 初期状態を透明にする
+                p.noLoop();
+                new ResizeObserver(() => {
+                    const nw = container.parentElement.clientWidth;
+                    if (nw > 0 && nw !== p.width) {
+                        p.resizeCanvas(nw, p.height);
+                        p.clear(); // ★リサイズ直後も透明にリセット
+                        // クロップ矩形表示中なら中央に再配置
+                        if (document.getElementById('crop-rect').style.display !== 'none') showCropRect();
+                        p.redraw();
+                    }
+                }).observe(container.parentElement);
+
+                // マウス/タッチイベント
+                const getPos = (e) => {
+                    const rect = p.canvas.getBoundingClientRect();
+                    const zoom = rect.width / p.canvas.offsetWidth || 1;
+                    const cx = e.touches ? e.touches[0].clientX : e.clientX;
+                    const cy = e.touches ? e.touches[0].clientY : e.clientY;
+                    return { x: Math.max(0, Math.min(p.width, (cx-rect.left)/zoom)), y: Math.max(0, Math.min(p.height, (cy-rect.top)/zoom)) };
+                };
+                const handleCellPaint = (pos) => {
+                    const cols = p.floor(p.width/gridSize);
+                    const cx = p.floor(pos.x/gridSize), cy = p.floor(pos.y/gridSize);
+                    const key = cx+','+cy;
+                    paintPendingCells.add(key);
+                    p.redraw();
+                };
+                p.canvas.addEventListener('mousedown', (e) => {
+                    const pos = getPos(e);
+                    // 【追加】描画モードでないときは、クリックした場所を基準点(Origin)にする
+                    if (paintMode !== 'cell') {
+                        originCol = p.floor(pos.x / gridSize);
+                        originRow = p.floor(pos.y / gridSize);
+                        p.redraw(); // 連番表示を更新するために再描画
+                    }
+                    // 既存の描画処理
+                    if (paintMode === 'cell') {
+                        e.preventDefault();
+                        handleCellPaint(pos);
+                        return;
+                    }
+                });
+                p.canvas.addEventListener('mousemove', (e) => {
+                    if (paintMode==='cell' && e.buttons===1) { e.preventDefault(); handleCellPaint(getPos(e)); return; }
+                });
+                p.canvas.addEventListener('touchstart', (e) => {
+                    if (paintMode==='cell') { e.preventDefault(); handleCellPaint(getPos(e)); return; }
+                }, {passive:false});
+                p.canvas.addEventListener('touchmove', (e) => {
+                    if (paintMode==='cell') { e.preventDefault(); handleCellPaint(getPos(e)); return; }
+                }, {passive:false});
+            };
+
+            p.draw = () => {
+                p.clear();
+                if (!virtualCanvas) return;
+
+                // 画面サイズに合わせて拡大率を決定
+                displayScale = p.width / virtualCanvas.width;
+                const drawH = virtualCanvas.height * displayScale;
+
+                // キャンバス高さが合っていない場合はリサイズ
+                if (p.height !== Math.floor(drawH)) {
+                    p.resizeCanvas(p.width, Math.floor(drawH));
+                    return;
+                }
+
+                // 背景色（作業用）
+                p.noStroke();
+                p.fill(bgColor);
+                p.rect(0, 0, p.width, p.height);
+
+                // 【高速描画】1ピクセルずつ rect を描くのではなく、Imageを拡大表示
+                // ただし、選択色ハイライトやインデックス表示が必要な場合はループ回します
+                p.noSmooth(); // ドットをクッキリさせる
+                
+                virtualCanvas.loadPixels();
+                for (let y = 0; y < virtualCanvas.height; y++) {
+                    for (let x = 0; x < virtualCanvas.width; x++) {
+                        const i = (x + y * virtualCanvas.width) * 4;
+                        const r = virtualCanvas.pixels[i], g = virtualCanvas.pixels[i+1], b = virtualCanvas.pixels[i+2], a = virtualCanvas.pixels[i+3];
+                        if (a < 10) continue;
+
+                        let currentHex = toHexStr(r, g, b);
+                        
+                        // 選択色以外を暗くする視覚効果
+                        if (selectedHex && currentHex !== selectedHex) {
+                            p.fill(r * 0.2, g * 0.2, b * 0.2, a);
+                        } else {
+                            p.fill(r, g, b, a);
+                        }
+
+                        // グリッド
+                        if (gridLine) {
+                            p.stroke(gridLineColor);
+                            p.strokeWeight(gridLineWeight);
+                        } else {
+                            p.noStroke();
+                        }
+
+                        p.rect(x * displayScale, y * displayScale, displayScale, displayScale);
+                    }
+                }
+
+                // ガイド表示 (displayScaleを渡す)
+                if (showGuide) drawGuideOverlay(displayScale);
+            };
+
+            function saveOriginalSize() {
+                if (!virtualCanvas) return;
+                // virtualCanvas はすでに 1px=1ドット のデータになっている
+                p.save(virtualCanvas, "pixel_art_export.png");
+            }
+
+            p.mousePressed = () => {
+                // 画面上のクリック座標をドット座標に変換
+                let tx = Math.floor(p.mouseX / displayScale);
+                let ty = Math.floor(p.mouseY / displayScale);
+                
+                // virtualCanvas の (tx, ty) の色を塗り替える... 
+            };
+
+            function sp(buf,x,y,cols,rows,er,eg,eb,w){
+                if(x<0||x>=cols||y>=rows)return;
+                const i=(x+y*cols)*4;buf[i]+=er*w;buf[i+1]+=eg*w;buf[i+2]+=eb*w;
+            }
+            function lum(p,h){const c=p.color(h);return .299*p.red(c)+.587*p.green(c)+.114*p.blue(c);}
+
+            function kmeansQuantize(buf, cols, rows, qs, dither) {
+                // k = 256/qsをクラスタ数の目安に使用
+                const k = Math.max(2, Math.min(64, Math.round(256 / qs)));
+                const n = cols * rows;
+                // 初期センター：ランダムサンプリング
+                let centers = [];
+                const used = new Set();
+                while (centers.length < k) {
+                    const idx = Math.floor(Math.random() * n);
+                    if (!used.has(idx)) { used.add(idx); const i=idx*4; centers.push([buf[i],buf[i+1],buf[i+2]]); }
+                }
+                // イテレーション（10回）
+                for (let iter=0; iter<10; iter++) {
+                    const sums = centers.map(()=>[0,0,0,0]);
+                    for (let j=0; j<n; j++) {
+                        const i=j*4, r=buf[i],g=buf[i+1],b=buf[i+2];
+                        let best=0, bestD=Infinity;
+                        centers.forEach((c,ci)=>{ const d=(c[0]-r)**2+(c[1]-g)**2+(c[2]-b)**2; if(d<bestD){bestD=d;best=ci;} });
+                        sums[best][0]+=r; sums[best][1]+=g; sums[best][2]+=b; sums[best][3]++;
+                    }
+                    centers = sums.map((s,ci)=> s[3]>0 ? [s[0]/s[3],s[1]/s[3],s[2]/s[3]] : centers[ci]);
+                }
+                // ピクセルを最近センターに置き換え（ディザあり）
+                if (dither) {
+                    for (let y=0; y<rows; y++) for (let x=0; x<cols; x++) {
+                        const i=(x+y*cols)*4, r=buf[i],g=buf[i+1],b=buf[i+2];
+                        let best=0, bestD=Infinity;
+                        centers.forEach((c,ci)=>{ const d=(c[0]-r)**2+(c[1]-g)**2+(c[2]-b)**2; if(d<bestD){bestD=d;best=ci;} });
+                        const nr=Math.round(centers[best][0]), ng=Math.round(centers[best][1]), nb=Math.round(centers[best][2]);
+                        buf[i]=nr; buf[i+1]=ng; buf[i+2]=nb;
+                        const er=r-nr, eg=g-ng, eb=b-nb;
+                        sp(buf,x+1,y,  cols,rows,er,eg,eb,7/16);
+                        sp(buf,x-1,y+1,cols,rows,er,eg,eb,3/16);
+                        sp(buf,x,  y+1,cols,rows,er,eg,eb,5/16);
+                        sp(buf,x+1,y+1,cols,rows,er,eg,eb,1/16);
+                    }
+                } else {
+                    for (let j=0; j<n; j++) {
+                        const i=j*4, r=buf[i],g=buf[i+1],b=buf[i+2];
+                        let best=0, bestD=Infinity;
+                        centers.forEach((c,ci)=>{ const d=(c[0]-r)**2+(c[1]-g)**2+(c[2]-b)**2; if(d<bestD){bestD=d;best=ci;} });
+                        buf[i]=Math.round(centers[best][0]); buf[i+1]=Math.round(centers[best][1]); buf[i+2]=Math.round(centers[best][2]);
+                    }
+                }
+            }
+
+            function medianCutQuantize(buf, cols, rows, qs, dither) {
+                // k = 256/qs をパレット数の目安に使用
+                const k = Math.max(2, Math.min(256, Math.round(256 / qs)));
+                const n = cols * rows;
+                // ピクセルをRGB配列として収集
+                const pixels = [];
+                for (let i = 0; i < n; i++) pixels.push([buf[i*4], buf[i*4+1], buf[i*4+2]]);
+
+                // Median Cut: ボックスをチャンネル幅が最大の軸で分割
+                let boxes = [pixels];
+                while (boxes.length < k) {
+                    // 最大ボックスを選択
+                    let maxIdx = 0, maxRange = -1;
+                    boxes.forEach((box, bi) => {
+                        let rMin=255,rMax=0,gMin=255,gMax=0,bMin=255,bMax=0;
+                        box.forEach(([r,g,b]) => {
+                            if(r<rMin)rMin=r; if(r>rMax)rMax=r;
+                            if(g<gMin)gMin=g; if(g>gMax)gMax=g;
+                            if(b<bMin)bMin=b; if(b>bMax)bMax=b;
+                        });
+                        const range = Math.max(rMax-rMin, gMax-gMin, bMax-bMin);
+                        if (range > maxRange) { maxRange = range; maxIdx = bi; }
+                    });
+                    if (maxRange === 0) break;
+                    const box = boxes.splice(maxIdx, 1)[0];
+                    // 最大レンジの軸を特定してソート・分割
+                    let rMin=255,rMax=0,gMin=255,gMax=0,bMin=255,bMax=0;
+                    box.forEach(([r,g,b]) => {
+                        if(r<rMin)rMin=r; if(r>rMax)rMax=r;
+                        if(g<gMin)gMin=g; if(g>gMax)gMax=g;
+                        if(b<bMin)bMin=b; if(b>bMax)bMax=b;
+                    });
+                    const rR=rMax-rMin, gR=gMax-gMin, bR=bMax-bMin;
+                    const axis = rR>=gR && rR>=bR ? 0 : gR>=bR ? 1 : 2;
+                    box.sort((a,b) => a[axis]-b[axis]);
+                    const mid = Math.floor(box.length / 2);
+                    boxes.push(box.slice(0, mid), box.slice(mid));
+                }
+                // 各ボックスの平均色をパレットに
+                const palette = boxes.map(box => {
+                    const sum = box.reduce((a,c) => [a[0]+c[0],a[1]+c[1],a[2]+c[2]], [0,0,0]);
+                    return sum.map(v => Math.round(v / box.length));
+                });
+                // 最近傍パレット色に置き換え（ディザあり）
+                const nearest = (r,g,b) => {
+                    let best=0, bestD=Infinity;
+                    palette.forEach((c,ci) => { const d=(c[0]-r)**2+(c[1]-g)**2+(c[2]-b)**2; if(d<bestD){bestD=d;best=ci;} });
+                    return palette[best];
+                };
+                if (dither) {
+                    for (let y=0;y<rows;y++) for (let x=0;x<cols;x++) {
+                        const i=(x+y*cols)*4, r=buf[i],g=buf[i+1],b=buf[i+2];
+                        const [nr,ng,nb] = nearest(r,g,b);
+                        buf[i]=nr; buf[i+1]=ng; buf[i+2]=nb;
+                        const er=r-nr, eg=g-ng, eb=b-nb;
+                        sp(buf,x+1,y,  cols,rows,er,eg,eb,7/16);
+                        sp(buf,x-1,y+1,cols,rows,er,eg,eb,3/16);
+                        sp(buf,x,  y+1,cols,rows,er,eg,eb,5/16);
+                        sp(buf,x+1,y+1,cols,rows,er,eg,eb,1/16);
+                    }
+                } else {
+                    for (let j=0;j<n;j++) {
+                        const i=j*4;
+                        const [nr,ng,nb] = nearest(buf[i],buf[i+1],buf[i+2]);
+                        buf[i]=nr; buf[i+1]=ng; buf[i+2]=nb;
+                    }
+                }
+            }
+
+            const wrap = () => document.getElementById('pixel-app-container').closest('.px-canvas-wrap');
+
+            p.setImage = (url) => p.loadImage(url, img => {
+                sourceImg=img; rawImg=img.get();
+                swapMap={}; selectedHex=null; history=[];
+                document.getElementById('px-img-info').textContent = '元画像: ' + img.width + ' × ' + img.height + ' px';
+                document.getElementById('px-crop-btn').style.display='inline-block';
+                document.getElementById('px-crop-confirm').style.display='none';
+                document.getElementById('px-crop-reset').style.display='none';
+                document.getElementById('px-undo').disabled=true;
+                document.getElementById('px-paint-open').style.display='inline-block';
+                document.getElementById('px-paint-bar').style.display='none';
+                document.getElementById('px-source-bar').style.display='flex';
+                switchImgView('current');
+                hideCropRect();
+                pxSelected.clear(); updateBulkBar();
+                setTimeout(() => p.redraw(), 0);
+            });
+            // 元画像/加工中の切り替え
+            p.viewOriginal = () => { if (sourceImg) { rawImg=sourceImg.get(); p.redraw(); } };
+            p.getCanvasDataURL = () => p.canvas ? p.canvas.toDataURL() : null;
+            p.cropConfirm = () => {
+                const cv = p.canvas;
+                const cr = document.getElementById('crop-rect');
+                const scaleX = sourceImg.width / cv.offsetWidth;
+                const scaleY = sourceImg.height / cv.offsetHeight;
+                const rx = Math.round((parseInt(cr.style.left)||0) * scaleX);
+                const ry = Math.round((parseInt(cr.style.top) ||0) * scaleY);
+                const rw = Math.round((parseInt(cr.style.width) ||100) * scaleX);
+                const rh = Math.round((parseInt(cr.style.height)||100) * scaleY);
+                if (rw<2||rh<2) return;
+                p.pushHistory();
+                rawImg = sourceImg.get(rx, ry, rw, rh);
+                hideCropRect();
+                document.getElementById('px-crop-confirm').style.display='none';
+                document.getElementById('px-crop-reset').style.display='inline-block';
+                p.redraw();
+            };
+            p.cropReset = () => {
+                rawImg = sourceImg ? sourceImg.get() : null;
+                hideCropRect();
+                document.getElementById('px-crop-confirm').style.display='none';
+                document.getElementById('px-crop-reset').style.display='none';
+                p.redraw();
+            };
+            p.pxUpdate = (gs,qs,uq,qm,dt,rm,bg,gl,glc,glw,mc,umc) => {
+                gridSize=gs; quantizeStep=qs; useQuant=uq; quantMethod=qm;
+                useDither=dt; rawMode=rm; bgColor=bg;
+                gridLine=gl; gridLineColor=glc; gridLineWeight=glw;
+                maxColors=mc; useMaxColors=umc;
+                p.redraw();
+            };
+            p.pushHistory = () => {
+                if (!rawImg) return;
+                history.push(rawImg.get());
+                if (history.length > historyMax) history.shift();
+                document.getElementById('px-undo').disabled = false;
+            };
+            p.undo = () => {
+                if (!history.length) return;
+                rawImg = history.pop();
+                if (!history.length) document.getElementById('px-undo').disabled = true;
+                p.redraw();
+            };
+            p.highlight = hv => { selectedHex=(selectedHex===hv?null:hv); p.redraw(); };
+            p.swap = (from,to) => {
+                // 色変更時は減色・MaxColorsを自動オフにして正確な色で操作
+                if (useQuant || useMaxColors) {
+                    useQuant=false; useMaxColors=false;
+                    document.getElementById('px-quant').checked=false;
+                    document.getElementById('px-maxcol-on').checked=false;
+                    pxUpdate();
+                }
+                if(from===to) delete swapMap[from]; else swapMap[from]=to;
+                p.redraw();
+            };
+            p.resetSwap = hv => { delete swapMap[hv]; p.redraw(); };
+            p.getSwapMap  = () => swapMap;
+            p.getSourceImg= () => sourceImg;
+            p.startPaint = (mode) => {
+                paintMode=mode; paintPendingCells.clear();
+                p.canvas.style.cursor = mode==='cell' ? 'crosshair' : 'default';
+                p.redraw();
+            };
+            p.confirmPaint = (color) => {
+                if (!color) return;
+                const cols=p.floor(p.width/gridSize), rows=p.floor(p.height/gridSize);
+                if (paintMode==='cell') {
+                    // finalColorsを再計算して選択セルの色をswapMapに登録
+                    paintPendingCells.forEach(key=>{
+                        const [cx,cy]=key.split(',').map(Number);
+                        if (cx<cols && cy<rows) {
+                            // draw内と同じ計算でfinalColorを取得
+                            const temp=rawImg.get(); temp.resize(cols,rows); temp.loadPixels();
+                            const i=(cx+cy*cols)*4;
+                            const fc=toHexStr(temp.pixels[i],temp.pixels[i+1],temp.pixels[i+2]);
+                            swapMap[fc]=color;
+                        }
+                    });
+                } else if (paintMode==='rect') {
+                    const cr=document.getElementById('crop-rect');
+                    const cv=p.canvas;
+                    const sx=rawImg.width/cv.offsetWidth, sy=rawImg.height/cv.offsetHeight;
+                    const rl=parseInt(cr.style.left)||0, rt=parseInt(cr.style.top)||0;
+                    const rw=parseInt(cr.style.width)||0, rh=parseInt(cr.style.height)||0;
+                    const temp=rawImg.get(); temp.resize(cols,rows); temp.loadPixels();
+                    for (let y=0;y<rows;y++) for (let x=0;x<cols;x++) {
+                        const px=x*gridSize+gridSize/2, py=y*gridSize+gridSize/2;
+                        if (px>=rl && px<=rl+rw && py>=rt && py<=rt+rh) {
+                            const i=(x+y*cols)*4;
+                            const fc=toHexStr(temp.pixels[i],temp.pixels[i+1],temp.pixels[i+2]);
+                            swapMap[fc]=color;
+                        }
+                    }
+                }
+                paintPendingCells.clear();
+                paintMode=null;
+                p.canvas.style.cursor='default';
+                p.redraw();
+            };
+            p.stopPaint = () => {
+                paintMode=null; paintPendingCells.clear();
+                p.canvas.style.cursor='default';
+                p.redraw();
+            };
+        }, container);
+
+        // コントロールのイベント
+
+        window.pxUpdate = function() {
+            if (!rawImg) return;
+
+            // 1. 論理サイズ（ドット数）の決定
+            const cols = Math.floor(rawImg.width / gridSize);
+            const rows = Math.floor(rawImg.height / gridSize);
+
+            // 2. 仮想キャンバス(1px=1ドット)の作成
+            let vCanvas = p.createImage(cols, rows);
+            let source = rawImg.get();
+            source.resize(cols, rows);
+            source.loadPixels();
+            
+            // 3. 量子化バッファの準備
+            const buf = new Float32Array(source.pixels.length);
+            for (let i = 0; i < source.pixels.length; i++) buf[i] = source.pixels[i];
+
+            // 4. 減色・量子化の実行 (以前作った関数たちを呼ぶ)
+            if (!rawMode && useQuant) {
+                if (quantMethod === 'kmeans') {
+                    kmeansQuantize(buf, cols, rows, quantizeStep, useDither);
+                } else if (quantMethod === 'mediancut') {
+                    medianCutQuantize(buf, cols, rows, quantizeStep, useDither);
+                } else if (quantMethod === 'preset') {
+                    applyPresetQuantize(buf, cols, rows); // Master Palette近似
+                } else {
+                    applyStandardQuantize(buf, cols, rows, quantizeStep, useDither);
+                }
+            }
+
+            // 5. 色置換(SwapMap)の適用と vCanvas への書き戻し
+            vCanvas.loadPixels();
+            usedPresetColors.clear(); 
+
+            for (let i = 0; i < buf.length; i += 4) {
+                let hex = toHexStr(buf[i], buf[i+1], buf[i+2]);
+                let finalHex = rawMode ? hex : (swapMap[hex] || hex);
+                
+                let c = p.color(finalHex);
+                vCanvas.pixels[i]   = p.red(c);
+                vCanvas.pixels[i+1] = p.green(c);
+                vCanvas.pixels[i+2] = p.blue(c);
+                vCanvas.pixels[i+3] = buf[i+3]; // Alpha維持
+
+                if (vCanvas.pixels[i+3] > 10) {
+                    usedPresetColors.add(`${vCanvas.pixels[i]},${vCanvas.pixels[i+1]},${vCanvas.pixels[i+2]}`);
+                }
+            }
+
+            vCanvas.updatePixels();
+            virtualCanvas = vCanvas; // 「正」のデータを更新！
+
+            // 6. UI更新と再描画
+            if (typeof updatePalette === 'function') updatePalette();
+            if (typeof updatePresetUnderline === 'function') updatePresetUnderline();
+
+            p.redraw(); // ここで初めて「映すだけ」の draw() が動く
+        };
+
+        // 補助：プリセット近似処理の分離
+        function applyPresetQuantize(buf, cols, rows) {
+            const targetPalettes = Array.from(activeMasterColors).map(str => str.split(',').map(Number));
+            if (targetPalettes.length === 0) return;
+
+            for (let i = 0; i < buf.length; i += 4) {
+                let minD = Infinity;
+                let closest = [buf[i], buf[i+1], buf[i+2]];
+                for (const pal of targetPalettes) {
+                    const d = Math.pow(buf[i] - pal[0], 2) + Math.pow(buf[i+1] - pal[1], 2) + Math.pow(buf[i+2] - pal[2], 2);
+                    if (d < minD) { minD = d; closest = pal; }
+                }
+                buf[i] = closest[0]; buf[i+1] = closest[1]; buf[i+2] = closest[2];
+            }
+        }
+
+        // スライダ↔数値入力連動
+        const syncNum = (rangeId, numId) => {
+            const range = document.getElementById(rangeId);
+            const num = document.getElementById(numId);
+
+            // 数値の同期は「動かしている最中」に行う（リアルタイム反映）
+            range.oninput = () => { num.value = range.value; };
+            num.oninput   = () => { range.value = num.value; };
+
+            // 実際の重い計算（pxUpdate）は「操作が終わった時」だけ行う
+            range.onchange = () => { pxUpdate(); };
+            num.onchange   = () => { pxUpdate(); };
+        };
+
+        // --- データ更新が必要（pxUpdate） ---
+        syncNum('px-grid',   'px-grid-num');
+        syncNum('px-color',  'px-color-num');
+        syncNum('px-maxcol', 'px-maxcol-num');
+        document.getElementById('px-quant').onchange = pxUpdate;
+        document.getElementById('px-quant-method').onchange = pxUpdate;
+        document.getElementById('px-dither').onchange = pxUpdate;
+        document.getElementById('px-maxcol-on').onchange = pxUpdate;
+        document.getElementById('px-raw').onchange = pxUpdate;
+
+        // --- 見た目だけ更新（redraw） ---
+        // 背景色やグリッド線の色は「仮想キャンバス」の中身を書き換えないので、描画だけでOK
+        document.getElementById('px-bg').oninput = () => { 
+            bgColor = document.getElementById('px-bg').value; 
+            pixelApp.redraw(); 
+        };
+        document.getElementById('px-gridline').onchange = () => { 
+            gridLine = document.getElementById('px-gridline').checked; 
+            pixelApp.redraw(); 
+        };
+        document.getElementById('px-gridline-color').oninput = () => { 
+            gridLineColor = document.getElementById('px-gridline-color').value; 
+            pixelApp.redraw(); 
+        };
+        document.getElementById('px-gridline-w').oninput = () => { 
+            gridLineWeight = parseFloat(document.getElementById('px-gridline-w').value); 
+            pixelApp.redraw(); 
+        };
+        document.getElementById('px-show-guide').onchange = (e) => {
+            showGuide = e.target.checked;
+            pixelApp.redraw(); 
+        };
+    }
+
+        function exportToSpreadsheet() {
+            if (!virtualCanvas) return;
+
+            virtualCanvas.loadPixels();
+            let csvContent = "";
+
+            for (let y = 0; y < virtualCanvas.height; y++) {
+                let row = [];
+                for (let x = 0; x < virtualCanvas.width; x++) {
+                    const i = (x + y * virtualCanvas.width) * 4;
+                    const r = virtualCanvas.pixels[i];
+                    const g = virtualCanvas.pixels[i+1];
+                    const b = virtualCanvas.pixels[i+2];
+                    const a = virtualCanvas.pixels[i+3];
+
+                    if (a < 10) {
+                        row.push(""); // 透明は空欄
+                    } else {
+                        row.push(toHexStr(r, g, b)); // #ffffff 形式
+                    }
+                }
+                csvContent += row.join("\t") + "\n"; // タブ区切り（スプレッドシートに貼り付けやすい）
+            }
+
+            // クリップボードにコピー
+            navigator.clipboard.writeText(csvContent).then(() => {
+                alert("スプレッドシート用データをクリップボードにコピーしました！\nExcelやGoogleシートに貼り付けてください。");
+            });
+        }
+
+        // 3Dレンダラーや外部ツールに渡すための「生データ」抽出
+        function getVoxelData() {
+            if (!virtualCanvas) return null;
+
+            const data = [];
+            virtualCanvas.loadPixels();
+
+            for (let y = 0; y < virtualCanvas.height; y++) {
+                for (let x = 0; x < virtualCanvas.width; x++) {
+                    const i = (x + y * virtualCanvas.width) * 4;
+                    const a = virtualCanvas.pixels[i+3];
+                    if (a < 10) continue; // 透明は除外
+
+                    const r = virtualCanvas.pixels[i];
+                    const g = virtualCanvas.pixels[i+1];
+                    const b = virtualCanvas.pixels[i+2];
+
+                    data.push({
+                        x: x,
+                        y: y,
+                        z: 0, // 将来的にはここに輝度などを入れて凹凸にする
+                        color: toHexStr(r, g, b)
+                    });
+                }
+            }
+            return data; 
+        }
+
+    let pxSelected = new Set();
+
+    // 設定をUIに反映して再描画
+    function applySettings(gs, qs, mc, label) {
+        document.getElementById('px-grid').value    = gs;
+        document.getElementById('px-grid-num').value = gs;
+        document.getElementById('px-color').value   = qs;
+        document.getElementById('px-color-num').value = qs;
+        document.getElementById('px-maxcol').value  = mc;
+        document.getElementById('px-maxcol-num').value = mc;
+        if (label) document.getElementById('px-preset-label').textContent = label;
+        pxUpdate();
+        // 選択をリセット（同じ項目を再選できるように）
+        setTimeout(() => document.getElementById('px-preset').value = '', 0);
+    }
+
+    function applyPreset(val) {
+        if (!val) return;
+        const presets = {
+            dot:    { gs:8,  qs:32,  mc:16,  label:'Pixel Size 8 / Steps 32 / Colors 16' },
+            mosaic: { gs:20, qs:16,  mc:32,  label:'Pixel Size 20 / Steps 16 / Colors 32' },
+            retro:  { gs:16, qs:8,   mc:8,   label:'Pixel Size 16 / Steps 8 / Colors 8' },
+            fine:   { gs:4,  qs:64,  mc:64,  label:'Pixel Size 4 / Steps 64 / Colors 64' },
+            mono:   { gs:8,  qs:128, mc:2,   label:'Pixel Size 8 / Steps 128 / Colors 2' },
+        };
+        if (val === 'auto') { autoDetect(); return; }
+        const p = presets[val];
+        if (p) applySettings(p.gs, p.qs, p.mc, p.label);
+    }
+
+    function autoDetect() {
+        if (!pixelApp || !pixelApp.canvas) return;
+        // sourceImgのピクセルをサンプリングして画像特徴を分析
+        const src = pixelApp.getSourceImg ? pixelApp.getSourceImg() : null;
+        if (!src) { applySettings(8, 32, 16, '画像未読み込み'); return; }
+
+        const sample = document.createElement('canvas');
+        const size = 64;
+        sample.width = sample.height = size;
+        const ctx = sample.getContext('2d');
+        // p5イメージを一度canvasに描画してピクセル取得
+        ctx.drawImage(pixelApp.canvas, 0, 0, size, size);
+        const data = ctx.getImageData(0, 0, size, size).data;
+
+        // 色数・輝度分散・コントラストを計測
+        const colorSet = new Set();
+        let lumSum = 0, lumSqSum = 0, n = 0;
+        for (let i = 0; i < data.length; i += 4) {
+            if (data[i+3] < 128) continue;
+            const r = data[i] >> 4, g = data[i+1] >> 4, b = data[i+2] >> 4;
+            colorSet.add((r << 8) | (g << 4) | b);
+            const l = 0.299*data[i] + 0.587*data[i+1] + 0.114*data[i+2];
+            lumSum += l; lumSqSum += l*l; n++;
+        }
+        const uniqueColors = colorSet.size;
+        const contrast = n > 0 ? Math.sqrt(lumSqSum/n - (lumSum/n)**2) : 0;
+        const imgW = src.width || 64;
+
+        // 判定ロジック
+        let gs, qs, mc, reason;
+        // Pixel Size: 画像幅に応じて
+        gs = imgW > 400 ? 12 : imgW > 200 ? 8 : 6;
+        // 色数が少ない（イラスト・ロゴ系）
+        if (uniqueColors < 80) {
+            qs = 16; mc = Math.min(uniqueColors + 4, 24);
+            reason = `イラスト系 (${uniqueColors}色) → Steps ${qs} / Colors ${mc}`;
+        // 色数が多い（写真系）
+        } else if (uniqueColors > 300) {
+            qs = 48; mc = 32;
+            reason = `写真系 (${uniqueColors}色) → Steps ${qs} / Colors ${mc}`;
+        // 中間
+        } else {
+            qs = 32; mc = 16;
+            reason = `標準 (${uniqueColors}色) → Steps ${qs} / Colors ${mc}`;
+        }
+        // コントラストが高い場合はStepsを粗くしてもきれい
+        if (contrast > 80 && qs > 16) { qs = Math.max(16, qs - 16); reason += ' +高コントラスト'; }
+
+        applySettings(gs, qs, mc, `自動: Pixel ${gs} / Steps ${qs} / Colors ${mc} [${reason}]`);
+    }
+ // チェック選択中の色
+
+    // ---- クロップ矩形（HTML要素方式）----
+    function showCropRect() {
+        const cv = pixelApp.canvas;
+        const rect = document.getElementById('crop-rect');
+        // キャンバスの中央に初期サイズで表示
+        const w = Math.round(cv.offsetWidth * 0.6);
+        const h = Math.round(cv.offsetHeight * 0.6);
+        const x = Math.round((cv.offsetWidth - w) / 2);
+        const y = Math.round((cv.offsetHeight - h) / 2);
+        rect.style.left   = x + 'px';
+        rect.style.top    = y + 'px';
+        rect.style.width  = w + 'px';
+        rect.style.height = h + 'px';
+        rect.style.display = 'block';
+    }
+
+    function hideCropRect() {
+        document.getElementById('crop-rect').style.display = 'none';
+    }
+
+    (function initCropRect() {
+        const rect = document.getElementById('crop-rect');
+        let mode = null; // 'move' | 'tl'|'tr'|'bl'|'br'
+        let startX, startY, startL, startT, startW, startH;
+        const MIN = 20;
+
+        function getCV() { return pixelApp ? pixelApp.canvas : null; }
+
+        function clamp(val, min, max) { return Math.max(min, Math.min(max, val)); }
+
+        function onStart(e) {
+            e.stopPropagation();
+            const t = e.touches ? e.touches[0] : e;
+            startX = t.clientX; startY = t.clientY;
+            startL = parseInt(rect.style.left)  || 0;
+            startT = parseInt(rect.style.top)   || 0;
+            startW = parseInt(rect.style.width) || 100;
+            startH = parseInt(rect.style.height)|| 100;
+            mode = e.target.dataset.h || 'move';
+            e.preventDefault();
+        }
+
+        function onMove(e) {
+            if (!mode) return;
+            e.preventDefault();
+            const t = e.touches ? e.touches[0] : e;
+            const dx = t.clientX - startX;
+            const dy = t.clientY - startY;
+            const cv = getCV();
+            const maxW = cv ? cv.offsetWidth  : 9999;
+            const maxH = cv ? cv.offsetHeight : 9999;
+            let l=startL, top=startT, w=startW, h=startH;
+
+            if (mode==='move') {
+                l = clamp(startL+dx, 0, maxW-w);
+                top = clamp(startT+dy, 0, maxH-h);
+            } else {
+                if (mode==='br'||mode==='tr') w = clamp(startW+dx, MIN, maxW-l);
+                if (mode==='bl'||mode==='tl') { w = clamp(startW-dx, MIN, startL+startW); l = startL+startW-w; }
+                if (mode==='br'||mode==='bl') h = clamp(startH+dy, MIN, maxH-top);
+                if (mode==='tr'||mode==='tl') { h = clamp(startH-dy, MIN, startT+startH); top = startT+startH-h; }
+            }
+            rect.style.left=l+'px'; rect.style.top=top+'px';
+            rect.style.width=w+'px'; rect.style.height=h+'px';
+        }
+
+        function onEnd() { mode = null; }
+
+        rect.addEventListener('mousedown',  onStart);
+        rect.addEventListener('touchstart', onStart, {passive:false});
+        document.addEventListener('mousemove',  onMove);
+        document.addEventListener('touchmove',  onMove, {passive:false});
+        document.addEventListener('mouseup',    onEnd);
+        document.addEventListener('touchend',   onEnd);
+    })();
+
+    function openPaintBar() {
+        document.getElementById('px-paint-bar').style.display='flex';
+        document.getElementById('px-paint-open').style.display='none';
+    }
+
+    function startPaintMode(mode) {
+        if (!pixelApp) return;
+        // 色変更前に減色・MaxColorsをオフ
+        const uq=document.getElementById('px-quant');
+        const umc=document.getElementById('px-maxcol-on');
+        if (uq.checked||umc.checked) { uq.checked=false; umc.checked=false; pxUpdate(); }
+        document.getElementById('px-cell-btn').style.background = mode==='cell' ? '#7b2fff' : '#555';
+        document.getElementById('px-rect-btn').style.background = mode==='rect' ? '#7b2fff' : '#555';
+        document.getElementById('px-paint-confirm').style.display = mode==='rect' ? 'inline-block' : 'none';
+        if (mode==='rect') showCropRect();
+        else hideCropRect();
+        pixelApp.startPaint(mode);
+    }
+
+    function confirmPaint() {
+        if (!pixelApp) return;
+        const color = document.getElementById('px-paint-color').value;
+        pixelApp.confirmPaint(color);
+        hideCropRect();
+        document.getElementById('px-paint-confirm').style.display='none';
+        document.getElementById('px-cell-btn').style.background='#555';
+        document.getElementById('px-rect-btn').style.background='#555';
+    }
+
+    function stopPaintMode() {
+        if (pixelApp) pixelApp.stopPaint();
+        hideCropRect();
+        document.getElementById('px-paint-bar').style.display='none';
+        document.getElementById('px-paint-open').style.display='inline-block';
+        document.getElementById('px-paint-confirm').style.display='none';
+        document.getElementById('px-cell-btn').style.background='#555';
+        document.getElementById('px-rect-btn').style.background='#555';
+    }
+
+    function startCropUI() {
+        if (!pixelApp || !pixelApp.canvas) return;
+        showCropRect();
+        document.getElementById('px-crop-confirm').style.display='inline-block';
+    }
+
+    function confirmCropUI() {
+        if (pixelApp) pixelApp.cropConfirm();
+    }
+
+    function resetCropUI() {
+        if (pixelApp) pixelApp.cropReset();
+    }
+
+    function renderPxPalette(palette, selectedHex, swapMap) {
+        const div = document.getElementById('px-palette');
+        if (!div) return;
+
+        // 1. 使用色数の表示を復活
+        div.innerHTML = `<div style="grid-column:1/-1;font-size:11px;color:#aaa;margin-bottom:4px;">使用色数: <b style="color:#00ffcc;">${palette.length}</b></div>`;
+
+        palette.forEach((hv, i) => {
+            const sw = swapMap[hv], disp = sw || hv;
+            
+            // --- 安全に番号(location)を取得する ---
+            let loc = "";
+            try {
+                // マスターパレットのUIから直接探す（失敗しても無視して次へ進む）
+                const targetRgb = hexToRgbStr(disp); // 下の補助関数を使用
+                const masterItem = document.querySelector(`#px-preset-table input[data-rgb="${targetRgb}"]`);
+                if (masterItem) loc = masterItem.dataset.location || "";
+            } catch (e) { 
+                // 番号取得でエラーが起きても、パレット表示自体は止めない
+            }
+
+            const chip = document.createElement('div');
+            chip.className = 'px-chip' + (selectedHex === hv ? ' active' : '');
+            chip.style.position = 'relative';
+
+            const cb = document.createElement('input');
+            cb.type = 'checkbox';
+            cb.checked = pxSelected.has(hv);
+            cb.onchange = () => {
+                if (cb.checked) pxSelected.add(hv); else pxSelected.delete(hv);
+                updateBulkBar();
+            };
+            chip.appendChild(cb);
+
+            const inner = document.createElement('div');
+            inner.innerHTML = `
+                <div class="px-box" style="background:${disp}"></div>
+                ${loc ? `<div style="position:absolute; top:1px; right:3px; font-size:8px; color:#00ffcc; font-weight:bold; text-shadow:1px 1px #000; pointer-events:none;">${loc}</div>` : ''}
+                <b>#${i}</b><br>
+                <input type="color" value="${disp}">
+                ${sw ? `<br><button class="px-reset" data-h="${hv}">↩</button>` : ''}
+            `;
+
+            // クリックイベント（pixelAppが未定義でも壊れないようにガード）
+            inner.querySelector('.px-box').onclick = () => { if(window.pixelApp) pixelApp.highlight(hv); };
+            inner.querySelector('input[type="color"]').oninput = e => { if(window.pixelApp) pixelApp.swap(hv, e.target.value); };
+            
+            const rb = inner.querySelector('.px-reset');
+            if (rb) rb.onclick = e => { e.stopPropagation(); if(window.pixelApp) pixelApp.resetSwap(hv); };
+
+            chip.appendChild(inner);
+            div.appendChild(chip);
+        });
+    }
+
+    // 補助関数：Hex(#ffffff) を "255,255,255" 形式に変換する（pを使わない）
+    function hexToRgbStr(hex) {
+        if (!hex || hex[0] !== '#') return "";
+        const r = parseInt(hex.slice(1, 3), 16);
+        const g = parseInt(hex.slice(3, 5), 16);
+        const b = parseInt(hex.slice(5, 7), 16);
+        return `${r},${g},${b}`;
+    }
+
+    function updateBulkBar() {
+        document.getElementById('px-sel-count').textContent = pxSelected.size;
+        document.getElementById('px-bulk').style.display = pxSelected.size > 0 ? 'flex' : 'none';
+    }
+
+    function applyBulkSwap() {
+        const color = document.getElementById('px-bulk-color').value;
+        pxSelected.forEach(hv => pixelApp.swap(hv, color));
+    }
+
+    function resetBulkSwap() {
+        pxSelected.forEach(hv => pixelApp.resetSwap(hv));
+    }
+
+    function clearSelection() {
+        pxSelected.clear();
+        updateBulkBar();
+        document.querySelectorAll('#px-palette .px-chip input[type="checkbox"]').forEach(cb => cb.checked = false);
+    }
+
+    // 元画像 / 加工中 切り替え
+    let currentImgView = 'current'; // 'original' | 'current'
+
+    function switchImgView(view) {
+        currentImgView = view;
+        const btnOrig = document.getElementById('px-view-original');
+        const btnCurr = document.getElementById('px-view-current');
+        if (view === 'original') {
+            btnOrig.style.background = '#007aff';
+            btnCurr.style.background = '#555';
+            if (pixelApp) pixelApp.viewOriginal();
+        } else {
+            btnOrig.style.background = '#555';
+            btnCurr.style.background = '#007aff';
+            // 加工中に戻す（cropReset相当だがswapMapは維持）
+            if (pixelApp) { pixelApp.cropReset(); }
+        }
+    }
+
+    function openCurrentInNewTab() {
+        if (!pixelApp) return;
+        const dataUrl = pixelApp.getCanvasDataURL();
+        if (!dataUrl) return;
+        // ObjectURLに変換して新規タブで開く
+        fetch(dataUrl)
+            .then(r => r.blob())
+            .then(blob => {
+                const url = URL.createObjectURL(blob);
+                const win = window.open(url, '_blank');
+                // タブが開いたら少し後にURLを解放
+                setTimeout(() => URL.revokeObjectURL(url), 60000);
+            });
+    }
+    
+    // pixel.js の末尾に追加 20260401 Gemini
+    window.pxUpdate = function() {
+        if (typeof redraw === 'function') {
+            redraw();
+        }
+    };
+
+    function sendToPreview() {
+        const voxelData = getVoxelData(); // 先ほど作った関数でデータを抽出
+        if (!voxelData) return;
+
+        // プレビューウィンドウとの通信チャンネル
+        const bc = new BroadcastChannel('pixel_data_channel');
+
+        // データを送信
+        // 画像を送るより圧倒的に軽量で、受け取り側（Three.js）で即座にループ回せます
+        bc.postMessage({
+            type: 'VOXEL_UPDATE',
+            width: virtualCanvas.width,
+            height: virtualCanvas.height,
+            data: voxelData,
+            timestamp: Date.now()
+        });
+
+        console.log("3Dプレビューへデータを送信しました:", voxelData.length, "個のボクセル");
+        
+        // チャンネルを閉じる（メモリリーク防止）
+        // ※ 頻繁に送る場合は、チャンネルをグローバル変数にして使い回すのがベストです
+        setTimeout(() => bc.close(), 100); 
+    }
+
+
+    // 以下20260406追加
+
+    // UIの生成
+    function initMasterPresetTable() {
+        const container = document.getElementById('px-preset-table');
+        container.innerHTML = '';
+        activeMasterColors.clear();
+
+        // ★ Object.entriesを使って、groupNameと一緒にインデックス(groupIdx)を取得
+        Object.entries(gameMasterPalette).forEach(([groupName, colors], groupIdx) => {
+            const groupDiv = document.createElement('div');
+            groupDiv.style.marginBottom = '6px';
+
+            // 親（グループ）ヘッダー
+            const header = document.createElement('label');
+            // ... (スタイル設定はそのまま) ...
+            header.style.display = 'flex';
+            header.style.alignItems = 'center';
+            header.style.background = '#2a2a2a';
+            header.style.padding = '2px 4px';
+            header.style.fontSize = '11px';
+            header.style.cursor = 'pointer';
+
+            const groupCb = document.createElement('input');
+            groupCb.type = 'checkbox';
+            groupCb.checked = true;
+
+            header.appendChild(groupCb);
+            header.appendChild(document.createTextNode(` ${groupName}`));
+            groupDiv.appendChild(header);
+
+            // 子（各色）のコンテナ
+            const childGrid = document.createElement('div');
+            childGrid.style.display = 'grid';
+            childGrid.style.gridTemplateColumns = 'repeat(2, 1fr)';
+            childGrid.style.gap = '3px';
+            childGrid.style.padding = '3px 0 3px 12px';
+
+            // ★ 第2引数で childIdx を取得
+            colors.forEach((rgb, childIdx) => {
+                const rgbKey = rgb.join(',');
+                activeMasterColors.add(rgbKey);
+
+                const item = document.createElement('label');
+                item.style.display = 'flex';
+                item.style.alignItems = 'center';
+                item.style.fontSize = '10px';
+                item.style.cursor = 'pointer';
+                item.style.position = 'relative'; // ★ 番号表示の基準用
+
+                const cb = document.createElement('input');
+                cb.type = 'checkbox';
+                cb.checked = true;
+                cb.dataset.rgb = rgbKey;
+                // ★ ここで「親番号-子番号」を保存しておく
+                cb.dataset.location = `${groupIdx}-${childIdx}`;
+
+                const chip = document.createElement('div');
+                // ... (チップのスタイル設定) ...
+                chip.style.width = '12px';
+                chip.style.height = '12px';
+                chip.style.background = `rgb(${rgbKey})`;
+                chip.style.margin = '0 4px';
+                chip.style.border = '1px solid #555';
+
+                item.appendChild(cb);
+                item.appendChild(chip);
+                item.appendChild(document.createTextNode(rgbKey));
+                childGrid.appendChild(item);
+
+                cb.onchange = () => {
+                    if (cb.checked) activeMasterColors.add(rgbKey);
+                    else activeMasterColors.delete(rgbKey);
+                    pxUpdate();
+                };
+            });
+
+            groupCb.onchange = () => {
+                const childCbs = childGrid.querySelectorAll('input');
+                childCbs.forEach(ccb => {
+                    ccb.checked = groupCb.checked;
+                    if (groupCb.checked) activeMasterColors.add(ccb.dataset.rgb);
+                    else activeMasterColors.delete(ccb.dataset.rgb);
+                });
+                pxUpdate();
+            };
+
+            groupDiv.appendChild(childGrid);
+            container.appendChild(groupDiv);
+        }); // ★ for...in から Object.entries.forEach に変更
+    }
+
+    // 初期化実行
+    initMasterPresetTable();
+
+    // 減色の実行ボタン
+    document.getElementById('btn-apply-preset').onclick = () => {
+        if (activeMasterColors.size === 0) return alert("色を選択してください");
+        if (!pixelApp) return;
+
+        // 1. 設定値を変更
+        const methodSelect = document.getElementById('px-quant-method');
+        methodSelect.value = 'preset';
+        document.getElementById('px-quant').checked = true;
+
+        // 2. システム側に更新を通知
+        // ここで内部的に p.redraw() が呼ばれていない場合、画面が変わりません
+        if (typeof pxUpdate === 'function') {
+            pxUpdate(); 
+        }
+
+        // 3. 強制的に p5 の draw を一回実行させる（これが重要！）
+        pixelApp.redraw(); 
+        
+        // 4. パレット表示の更新
+        if (typeof updatePalette === 'function') {
+            // 少し遅らせて実行すると、描画完了後の色が確実に取得できます
+            setTimeout(updatePalette, 50);
+        }
+    };
+
+    function updatePresetUnderline() {
+        // 1. px-preset-table 内の全ラベル（色の行）を取得
+        const container = document.getElementById('px-preset-table');
+        if (!container) return;
+        const items = container.querySelectorAll('label');
+
+        items.forEach(item => {
+            const cb = item.querySelector('input[type="checkbox"]');
+            if (!cb || !cb.dataset.rgb) return;
+
+            const rgbKey = cb.dataset.rgb;
+            const chip = item.querySelector('div'); // 色チップ（四角い部分）
+
+            // 2. usedPresetColors に含まれているか判定
+            const isUsed = (typeof usedPresetColors !== 'undefined') && usedPresetColors.has(rgbKey);
+
+            if (isUsed) {
+                // 使われている場合：下線を太くして、不透明度をMAXに
+                item.style.borderBottom = '2px solid #00ffcc'; 
+                item.style.opacity = '1.0';
+                if (chip) chip.style.boxShadow = '0 0 4px #00ffcc';
+            } else {
+                // 使われていない場合：下線を消して、少し薄くする
+                item.style.borderBottom = '2px solid transparent';
+                item.style.opacity = '0.5';
+                if (chip) chip.style.boxShadow = 'none';
+            }
+        });
+    }

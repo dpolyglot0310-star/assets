@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>Unified Asset & Prompt Manager</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<header>
+    <div class="header-top">
+        <div class="mode-switch">
+            <button id="mode-assets" onclick="switchMode('assets')">Assets & Docs</button>
+            <button id="mode-links" onclick="switchMode('links')">External Links</button>
+            <button id="mode-pixel" onclick="switchMode('pixel')">Pixel Indexer</button>
+        </div>
+        <div id="status" style="font-size:10px; color:#888;">Standby</div>
+        <div id="last-update" style="font-size:10px; color:#888;">Standby</div>
+        <div id="asset-tools">
+            <button class="btn-api" onclick="fetchDeepScan()">APIスキャン</button>
+            <button class="btn-eco" onclick="loadAllMedia()">全表示</button>
+            <button id="save-btn" class="btn-save" style="display:none" onclick="downloadJSON()">JSON保存</button>
+        </div>
+    </div>
+    <div class="controls">
+        <input type="text" id="searchInput" placeholder="検索..." oninput="filterCards()">
+        <select id="viewSelect" onchange="refreshView()">
+            <option value="grid">グリッド表示</option>
+            <option value="list">リスト表示</option>
+        </select>
+        <select onchange="document.body.style.setProperty('--size', this.value + 'px')">
+            <option value="180">中サイズ</option>
+            <option value="120">小サイズ</option>
+            <option value="260">大サイズ</option>
+        </select>
+    </div>
+</header>
+
+<div id="catalog-container" style="display:none;"></div>
+
+<div id="pixel-panel">
+    <div class="px-canvas-wrap">
+        <div id="pixel-app-container"></div>
+        <div id="crop-overlay"></div>
+        <div id="crop-rect">
+            <div class="crop-handle tl" data-h="tl"></div>
+            <div class="crop-handle tr" data-h="tr"></div>
+            <div class="crop-handle bl" data-h="bl"></div>
+            <div class="crop-handle br" data-h="br"></div>
+        </div>
+    </div>
+    <div class="px-ui">
+        <input type="file" id="px-file" accept="image/*" style="margin-bottom:12px; width:100%; color:#eee;">
+        <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;">
+            <button id="px-crop-btn" style="display:none;background:#ff6a00;color:white;border:none;padding:5px 12px;border-radius:6px;cursor:pointer;font-size:12px;" onclick="startCropUI()">✂ 範囲選択</button>
+            <button id="px-crop-confirm" style="display:none;background:#28a745;color:white;border:none;padding:5px 12px;border-radius:6px;cursor:pointer;font-size:12px;" onclick="confirmCropUI()">✔ ここで切り出す</button>
+            <button id="px-crop-reset" style="display:none;background:#555;color:white;border:none;padding:5px 12px;border-radius:6px;cursor:pointer;font-size:12px;" onclick="resetCropUI()">↩ 全体に戻す</button>
+            <button onclick="pixelApp && pixelApp.saveCanvas('pixel','png')" style="background:#444;color:white;border:none;padding:5px 12px;border-radius:6px;cursor:pointer;font-size:12px;">💾 保存</button>
+            <button onclick="sendToPreview()" style="background:#444;color:white;border:none;padding:5px 12px;border-radius:6px;cursor:pointer;font-size:12px;">🖥️ 3Dプレビューへ送信</button>
+            <button id="px-undo" disabled onclick="pixelApp && pixelApp.undo()" style="background:#555;color:white;border:none;padding:5px 12px;border-radius:6px;cursor:pointer;font-size:12px;">↩ 戻る</button>
+            <button id="px-paint-open" style="display:none;background:#7b2fff;color:white;border:none;padding:5px 12px;border-radius:6px;cursor:pointer;font-size:12px;" onclick="openPaintBar()">🎨 色変更</button>
+        </div>
+        <div id="px-paint-bar" style="display:none;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:10px;background:#2a2a2a;padding:8px;border-radius:6px;">
+            <span style="font-size:11px;color:#aaa;">塗色:</span>
+            <input type="color" id="px-paint-color" value="#ff0000" style="width:36px;height:26px;padding:0;border:none;cursor:pointer;">
+            <button id="px-cell-btn" onclick="startPaintMode('cell')" style="background:#555;color:white;border:none;padding:4px 10px;border-radius:4px;cursor:pointer;font-size:11px;">💧 セル選択</button>
+            <button id="px-rect-btn" onclick="startPaintMode('rect')" style="background:#555;color:white;border:none;padding:4px 10px;border-radius:4px;cursor:pointer;font-size:11px;">▭ 範囲選択</button>
+            <button id="px-paint-confirm" style="display:none;background:#28a745;color:white;border:none;padding:4px 10px;border-radius:4px;cursor:pointer;font-size:11px;" onclick="confirmPaint()">✔ 適用</button>
+            <button onclick="stopPaintMode()" style="background:#444;color:#aaa;border:none;padding:4px 10px;border-radius:4px;cursor:pointer;font-size:11px;">× 終了</button>
+        </div>
+        <div class="px-switch">
+            <label><input type="checkbox" id="px-raw"> Raw (プレビュー)</label>
+            <label><input type="checkbox" id="px-show-guide"> ガイド表示</label>
+            <label>ガイド色: <input type="color" id="px-bg" value="#000000" style="width:36px;height:22px;padding:0;border:none;cursor:pointer;"></label>
+            <label><input type="checkbox" id="px-gridline"> Grid: <input type="color" id="px-gridline-color" value="#333333" style="width:36px;height:22px;padding:0;border:none;cursor:pointer;"> <input type="number" id="px-gridline-w" value="1" min="1" max="5" style="width:36px;background:#2a2a2a;color:#eee;border:1px solid #444;border-radius:4px;padding:2px 4px;">px</label>
+            <label>Zoom: <input type="range" id="px-zoom" min="0.25" max="5" step="0.05" value="1" style="width:90px;"> <span id="px-zoom-val">100%</span> <button onclick="document.getElementById('px-zoom').value=1;document.getElementById('pixel-app-container').style.transform='scale(1)';document.getElementById('px-zoom-val').innerText='100%';" style="padding:2px 7px;font-size:11px;background:#444;color:#eee;border:none;border-radius:4px;cursor:pointer;">100%</button></label>
+        </div>
+        <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:10px;">
+            <span style="font-size:11px;color:#aaa;flex-shrink:0;">Preset:</span>
+            <select id="px-preset" onchange="applyPreset(this.value)" style="background:#2a2a2a;color:#eee;border:1px solid #444;border-radius:4px;padding:3px 8px;font-size:11px;">
+                <option value="">— 選択 —</option>
+                <option value="dot">🎮 ドット絵</option>
+                <option value="mosaic">🔳 モザイク</option>
+                <option value="retro">👾 レトロ</option>
+                <option value="fine">✨ 高精細</option>
+                <option value="mono">■ モノクロ2値</option>
+                <option value="auto">🤖 画像から自動判定</option>
+            </select>
+            <span id="px-preset-label" style="font-size:10px;color:#888;"></span>
+        </div>
+        <div id="px-img-info" style="font-size:11px;color:#666;margin-bottom:8px;"></div>
+        <div id="px-source-bar" style="display:none;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:10px;">
+            <span style="font-size:11px;color:#aaa;">表示:</span>
+            <button id="px-view-original" onclick="switchImgView('original')" style="background:#007aff;color:white;border:none;padding:4px 10px;border-radius:4px;cursor:pointer;font-size:11px;">🖼 元画像</button>
+            <button id="px-view-current" onclick="switchImgView('current')" style="background:#555;color:white;border:none;padding:4px 10px;border-radius:4px;cursor:pointer;font-size:11px;">✏️ 加工中</button>
+            <button onclick="openCurrentInNewTab()" style="background:#333;color:#aaa;border:none;padding:4px 10px;border-radius:4px;cursor:pointer;font-size:11px;">🔗 新規タブで開く</button>
+        </div>
+        <div class="px-row">
+            <label>Pixel Size</label>
+            <input type="range" id="px-grid" min="1" max="60" value="10">
+            <input type="number" id="px-grid-num" min="1" max="60" value="10" style="width:48px;background:#2a2a2a;color:#00ffcc;border:1px solid #444;border-radius:4px;padding:2px 4px;font-family:monospace;">
+        </div>
+        <div class="px-row">
+            <label><input type="checkbox" id="px-quant" checked> 減色</label>
+            <select id="px-quant-method" style="background:#2a2a2a;color:#eee;border:1px solid #444;border-radius:4px;padding:2px 6px;font-size:11px;">
+                <option value="uniform">均等量子化</option>
+                <option value="kmeans">K-means</option>
+                <option value="mediancut">Median Cut</option>
+                <option value="preset">マスタープリセット</option>
+            </select>
+            <input type="range" id="px-color" min="1" max="128" value="32">
+            <input type="number" id="px-color-num" min="1" max="128" value="32" style="width:48px;background:#2a2a2a;color:#00ffcc;border:1px solid #444;border-radius:4px;padding:2px 4px;font-family:monospace;">
+        </div>
+        <div class="px-row">
+            <label><input type="checkbox" id="px-dither" checked> Dithering</label>
+        </div>
+        <div class="px-row">
+            <label><input type="checkbox" id="px-maxcol-on" checked> Max Colors</label>
+            <input type="range" id="px-maxcol" min="1" max="256" value="256">
+            <input type="number" id="px-maxcol-num" min="1" max="256" value="256" style="width:48px;background:#2a2a2a;color:#00ffcc;border:1px solid #444;border-radius:4px;padding:2px 4px;font-family:monospace;">
+        </div>
+        <div id="px-bulk" class="px-bulk" style="display:none;">
+            <span style="font-size:11px;color:#aaa;">選択中: <b id="px-sel-count">0</b></span>
+            <input type="color" id="px-bulk-color" value="#ff0000" style="width:36px;height:26px;padding:0;border:none;cursor:pointer;">
+            <select id="px-bulk-palette" style="max-width:120px;"><option value="">パレットから選択...</option></select>
+            <button onclick="applyBulkSwap()" style="background:#007aff;color:white;">適用</button>
+            <button onclick="resetBulkSwap()" style="background:#555;color:white;">リセット</button>
+            <button onclick="clearSelection()" style="background:#333;color:#aaa;">選択解除</button>
+        </div>
+        <div class="px-palette" id="px-palette"></div>
+
+
+        <div id="px-master-preset-section" style="margin-top: 15px; border-top: 1px solid #444; padding-top: 10px; color: #eee;">
+            <div style="font-size: 11px; color: #00ffcc; margin-bottom: 5px;">マスタープリセット</div>
+            
+            <div id="px-preset-table" style="max-height: 250px; overflow-y: auto; background: #1a1a1a; border: 1px solid #333; padding: 4px; border-radius: 4px;">
+                </div>
+
+            <button id="btn-apply-preset" style="width: 100%; margin-top: 8px; padding: 6px; cursor: pointer; background: #006655; color: #fff; border: none; border-radius: 3px; font-size: 11px;">
+                選択色のみで減色実行
+            </button>
+        </div>
+
+
+    </div>
+</div>
+
+<div id="toast">コピーしました！</div>
+
+<script src="js/app.js"></script>
+<script src="js/pixel.js"></script>
+</body>
+</html>
