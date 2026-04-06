@@ -106,6 +106,7 @@
                 <option value="uniform">均等量子化</option>
                 <option value="kmeans">K-means</option>
                 <option value="mediancut">Median Cut</option>
+                <option value="preset">マスタープリセット</option>
             </select>
             <input type="range" id="px-color" min="1" max="128" value="32">
             <input type="number" id="px-color-num" min="1" max="128" value="32" style="width:48px;background:#2a2a2a;color:#00ffcc;border:1px solid #444;border-radius:4px;padding:2px 4px;font-family:monospace;">
@@ -127,6 +128,20 @@
             <button onclick="clearSelection()" style="background:#333;color:#aaa;">選択解除</button>
         </div>
         <div class="px-palette" id="px-palette"></div>
+
+
+        <div id="px-master-preset-section" style="margin-top: 15px; border-top: 1px solid #444; padding-top: 10px; color: #eee;">
+            <div style="font-size: 11px; color: #00ffcc; margin-bottom: 5px;">マスタープリセット</div>
+            
+            <div id="px-preset-table" style="max-height: 250px; overflow-y: auto; background: #1a1a1a; border: 1px solid #333; padding: 4px; border-radius: 4px;">
+                </div>
+
+            <button id="btn-apply-preset" style="width: 100%; margin-top: 8px; padding: 6px; cursor: pointer; background: #006655; color: #fff; border: none; border-radius: 3px; font-size: 11px;">
+                選択色のみで減色実行
+            </button>
+        </div>
+
+
     </div>
 </div>
 

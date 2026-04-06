@@ -6,21 +6,20 @@
     let originCol = 0; // 基準となる列(X)
     let originRow = 0; // 基準となる行(Y)
 
-    // プリセットデータの構造（後でゲームカラーに差し替え）
-    let colorPresets = {
-        "Red System": [
-            { r: 255, g: 100, b: 100, active: true },
-            { r: 200, g: 0, b: 0, active: true }
-        ],
-        "Blue System": [
-            { r: 100, g: 100, b: 255, active: true },
-            { r: 0, g: 0, b: 150, active: true }
-        ],
-        "Greyscale": [
-            { r: 255, g: 255, b: 255, active: true },
-            { r: 0, g: 0, b: 0, active: true }
-        ]
+    // 以下20260406追加
+
+    // --- ゲームのカラープリセット（後で中身を差し替え） ---
+    const gameMasterPalette = {
+        "赤系統": [[255, 100, 100], [200, 0, 0], [150, 0, 50]],
+        "青系統": [[100, 100, 255], [0, 0, 150], [0, 150, 200]],
+        "緑系統": [[50, 200, 50], [0, 100, 0]],
+        "無彩色": [[255, 255, 255], [128, 128, 128], [0, 0, 0]]
     };
+
+    // 選択されているRGBを管理するSet（文字列化して保持）
+    let activeMasterColors = new Set();
+
+    // ここまで20260406
 
     function toHexStr(r, g, b) {
         return '#' + [r,g,b].map(v => Math.max(0,Math.min(255,v|0)).toString(16).padStart(2,'0')).join('');
@@ -171,18 +170,50 @@
                 const sorted=Array.from(paletteSet).sort((a,b)=>lum(p,b)-lum(p,a));
                 const limited = (rawMode || !useMaxColors) ? sorted : sorted.slice(0,maxColors);
                 const remap={};
-                if (!rawMode && useMaxColors && limited.length<sorted.length) {
-                    sorted.forEach(h=>{
-                        if(!limited.includes(h)){
-                            let best=limited[0],bestD=Infinity;
-                            const c=p.color(h),r=p.red(c),g=p.green(c),b=p.blue(c);
-                            limited.forEach(lh=>{const lc=p.color(lh),d=(p.red(lc)-r)**2+(p.green(lc)-g)**2+(p.blue(lc)-b)**2;if(d<bestD){bestD=d;best=lh;}});
-                            remap[h]=best;
-                        }
-                    });
-                }
 
-                const finalColors = quantColors.map(h => remap[h]||h);
+                // --- 【修正】色の最終決定ロジック ---
+                let finalColors;
+
+                if (!rawMode && quantMethod === 'preset') {
+                    // 1. マスタープリセットモード：チェックされた色だけを抽出
+                    const targetHexes = Array.from(activeMasterColors); // ['#ff0000', ...]
+                    
+                    finalColors = quantColors.map(h => {
+                        if (targetHexes.length === 0) return h;
+                        if (targetHexes.includes(h)) return h; // 既にプリセット内ならそのまま
+
+                        // プリセットの中で最も近い色を探す
+                        let best = targetHexes[0], bestD = Infinity;
+                        const c = p.color(h), r = p.red(c), g = p.green(c), b = p.blue(c);
+
+                        targetHexes.forEach(th => {
+                            const tc = p.color(th);
+                            const d = (p.red(tc) - r)**2 + (p.green(tc) - g)**2 + (p.blue(tc) - b)**2;
+                            if (d < bestD) {
+                                bestD = d;
+                                best = th;
+                            }
+                        });
+                        return best;
+                    });
+                } else {
+                    // 2. 既存のロジック（K-meansやMedian Cutの結果をmaxColorsに絞る）
+                    if (!rawMode && useMaxColors && limited.length < sorted.length) {
+                        sorted.forEach(h => {
+                            if (!limited.includes(h)) {
+                                let best = limited[0], bestD = Infinity;
+                                const c = p.color(h), r = p.red(c), g = p.green(c), b = p.blue(c);
+                                limited.forEach(lh => {
+                                    const lc = p.color(lh);
+                                    const d = (p.red(lc) - r)**2 + (p.green(lc) - g)**2 + (p.blue(lc) - b)**2;
+                                    if (d < bestD) { bestD = d; best = lh; }
+                                });
+                                remap[h] = best;
+                            }
+                        });
+                    }
+                    finalColors = quantColors.map(h => remap[h] || h);
+                }
 
                 // 【3】描画（Alphaを考慮して1ピクセルずつ塗る）
                 if (gridLine){p.stroke(gridLineColor);p.strokeWeight(gridLineWeight);}else{p.noStroke();}
@@ -935,97 +966,130 @@
     };
 
 
-    function buildPresetTable() {
-        const container = document.getElementById('preset-container');
-        container.innerHTML = ''; // クリア
+    // 以下20260406追加
 
-        for (let groupName in colorPresets) {
-            // --- 親：グループヘッダー ---
-            const groupWrap = document.createElement('div');
-            groupWrap.className = 'preset-group';
-            
-            const groupLabel = document.createElement('label');
-            const groupCheck = document.createElement('input');
-            groupCheck.type = 'checkbox';
-            groupCheck.checked = true;
-            groupCheck.onchange = (e) => toggleGroup(groupName, e.target.checked);
-            
-            groupLabel.appendChild(groupCheck);
-            groupLabel.appendChild(document.createTextNode(` ${groupName}`));
-            groupWrap.appendChild(groupLabel);
-            container.appendChild(groupWrap);
+    // UIの生成
+    function initMasterPresetTable() {
+        const container = document.getElementById('px-preset-table');
+        container.innerHTML = '';
+        activeMasterColors.clear();
 
-            // --- 子：各色 ---
-            colorPresets[groupName].forEach((color, index) => {
-                const row = document.createElement('div');
-                row.className = 'preset-row';
-                row.style.marginLeft = '20px';
+        for (const groupName in gameMasterPalette) {
+            const groupDiv = document.createElement('div');
+            groupDiv.style.marginBottom = '6px';
 
-                const check = document.createElement('input');
-                check.type = 'checkbox';
-                check.checked = color.active;
-                check.onchange = (e) => { color.active = e.target.checked; };
+            // 親（グループ）ヘッダー
+            const header = document.createElement('label');
+            header.style.display = 'flex';
+            header.style.alignItems = 'center';
+            header.style.background = '#2a2a2a';
+            header.style.padding = '2px 4px';
+            header.style.fontSize = '11px';
+            header.style.cursor = 'pointer';
 
-                const chip = document.createElement('span');
-                chip.style.display = 'inline-block';
-                chip.style.width = '16px';
-                chip.style.height = '16px';
-                chip.style.backgroundColor = `rgb(${color.r},${color.g},${color.b})`;
-                chip.style.border = '1px solid #ccc';
-                chip.style.margin = '0 5px';
+            const groupCb = document.createElement('input');
+            groupCb.type = 'checkbox';
+            groupCb.checked = true;
 
-                row.appendChild(check);
-                row.appendChild(chip);
-                row.appendChild(document.createTextNode(`${color.r},${color.g},${color.b}`));
-                container.appendChild(row);
+            header.appendChild(groupCb);
+            header.appendChild(document.createTextNode(` ${groupName}`));
+            groupDiv.appendChild(header);
+
+            // 子（各色）のコンテナ
+            const childGrid = document.createElement('div');
+            childGrid.style.display = 'grid';
+            childGrid.style.gridTemplateColumns = 'repeat(2, 1fr)';
+            childGrid.style.gap = '3px';
+            childGrid.style.padding = '3px 0 3px 12px';
+
+            gameMasterPalette[groupName].forEach(rgb => {
+                const rgbKey = rgb.join(',');
+                activeMasterColors.add(rgbKey); // デフォルト全ON
+
+                const item = document.createElement('label');
+                item.style.display = 'flex';
+                item.style.alignItems = 'center';
+                item.style.fontSize = '10px';
+                item.style.cursor = 'pointer';
+
+                const cb = document.createElement('input');
+                cb.type = 'checkbox';
+                cb.checked = true;
+                cb.dataset.rgb = rgbKey;
+
+                const chip = document.createElement('div');
+                chip.style.width = '12px';
+                chip.style.height = '12px';
+                chip.style.background = `rgb(${rgbKey})`;
+                chip.style.margin = '0 4px';
+                chip.style.border = '1px solid #555';
+
+                item.appendChild(cb);
+                item.appendChild(chip);
+                item.appendChild(document.createTextNode(rgbKey));
+                childGrid.appendChild(item);
+
+                // 子の個別切り替え
+                cb.onchange = () => {
+                    if (cb.checked) activeMasterColors.add(rgbKey);
+                    else activeMasterColors.delete(rgbKey);
+                };
             });
+
+            // 親の全選択/解除
+            groupCb.onchange = () => {
+                const childCbs = childGrid.querySelectorAll('input');
+                childCbs.forEach(ccb => {
+                    ccb.checked = groupCb.checked;
+                    if (groupCb.checked) activeMasterColors.add(ccb.dataset.rgb);
+                    else activeMasterColors.delete(ccb.dataset.rgb);
+                });
+            };
+
+            groupDiv.appendChild(childGrid);
+            container.appendChild(groupDiv);
         }
     }
 
-    // グループ一括切り替え
-    function toggleGroup(groupName, state) {
-        colorPresets[groupName].forEach(c => c.active = state);
-        buildPresetTable(); // UI再描画
-    }
+    // 減色の実行ロジック
+    document.getElementById('btn-apply-preset').onclick = () => {
+        if (activeMasterColors.size === 0) return alert("色を選択してください");
 
-    function applyPresetReduction(p5Instance) {
-        // 1. アクティブな色だけをフラットな配列に抽出
-        const activePalette = [];
-        for (let group in colorPresets) {
-            colorPresets[group].forEach(c => {
-                if (c.active) activePalette.push([c.r, c.g, c.b]);
-            });
-        }
+        // activeMasterColors (Set) を [[r,g,b], [r,g,b]] の形式に戻す
+        const targetPalette = Array.from(activeMasterColors).map(s => s.split(',').map(Number));
 
-        if (activePalette.length === 0) return; // 何も選ばれていない場合は中断
+        // pixelApp (または p5インスタンス) のpixelsを操作
+        const p = pixelApp.p; // pixelAppがp5インスタンスを保持している想定
+        p.loadPixels();
+        
+        for (let i = 0; i < p.pixels.length; i += 4) {
+            if (p.pixels[i + 3] === 0) continue; // 透明ドットは無視
 
-        // 2. キャンバス全ドットに対して処理
-        // ※ 1030pxを想定し、透明度(Alpha)は維持
-        p5Instance.loadPixels();
-        for (let i = 0; i < p5Instance.pixels.length; i += 4) {
-            let r = p5Instance.pixels[i];
-            let g = p5Instance.pixels[i+1];
-            let b = p5Instance.pixels[i+2];
-            let a = p5Instance.pixels[i+3];
+            const r = p.pixels[i];
+            const g = p.pixels[i+1];
+            const b = p.pixels[i+2];
 
-            if (a === 0) continue; // 透明ドットはスルー
+            let minD = Infinity;
+            let closest = targetPalette[0];
 
-            // 最も近い色を探す
-            let minDest = Infinity;
-            let chosen = activePalette[0];
-
-            for (let pal of activePalette) {
-                let d = Math.pow(r - pal[0], 2) + Math.pow(g - pal[1], 2) + Math.pow(b - pal[2], 2);
-                if (d < minDest) {
-                    minDest = d;
-                    chosen = pal;
+            // 最も近いRGBを探索
+            for (const pal of targetPalette) {
+                const d = Math.pow(r - pal[0], 2) + Math.pow(g - pal[1], 2) + Math.pow(b - pal[2], 2);
+                if (d < minD) {
+                    minD = d;
+                    closest = pal;
                 }
             }
 
-            // 置き換え
-            p5Instance.pixels[i]   = chosen[0];
-            p5Instance.pixels[i+1] = chosen[1];
-            p5Instance.pixels[i+2] = chosen[2];
+            p.pixels[i] = closest[0];
+            p.pixels[i+1] = closest[1];
+            p.pixels[i+2] = closest[2];
         }
-        p5Instance.updatePixels();
-    }
+        p.updatePixels();
+        
+        // 減色後に現在の使用色パレット（renderPxPalette）を再描画させる
+        if (typeof updatePalette === 'function') updatePalette();
+    };
+
+    // 初期化実行
+    initMasterPresetTable();
