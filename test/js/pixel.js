@@ -142,35 +142,44 @@
                 }, {passive:false});
             };
 
+            // コントロールのイベント
             p.draw = () => {
-                p.clear();
+                // 1. まず全消去して透明にする
+                p.clear(); 
+                
                 if (!virtualCanvas) return;
 
+                // 2. 倍率計算
                 displayScale = p.width / virtualCanvas.width;
 
-                // 背景描画
+                // --- 🌟 背景塗り(rect)のコードは削除またはコメントアウト 🌟 ---
                 // p.noStroke();
-                // p.fill(bgColor);
+                // p.fill(bgColor); 
                 // p.rect(0, 0, p.width, p.height);
 
-                // 描画ループ開始... (ここからは今のコードでOK)
+                // 3. ピクセルループ描画
                 virtualCanvas.loadPixels();
                 for (let y = 0; y < virtualCanvas.height; y++) {
                     for (let x = 0; x < virtualCanvas.width; x++) {
                         const i = (x + y * virtualCanvas.width) * 4;
-                        const r = virtualCanvas.pixels[i], g = virtualCanvas.pixels[i+1], b = virtualCanvas.pixels[i+2], a = virtualCanvas.pixels[i+3];
-                        if (a < 10) continue;
+                        const a = virtualCanvas.pixels[i+3];
 
+                        // 透明なら描画を飛ばす（これで下のチェッカーが見える）
+                        if (a < 10) continue; 
+
+                        const r = virtualCanvas.pixels[i];
+                        const g = virtualCanvas.pixels[i+1];
+                        const b = virtualCanvas.pixels[i+2];
+
+                        // 色の決定
                         let currentHex = toHexStr(r, g, b);
-                        
-                        // 選択色以外を暗くする視覚効果
                         if (selectedHex && currentHex !== selectedHex) {
-                            p.fill(r * 0.2, g * 0.2, b * 0.2, a);
+                            p.fill(r * 0.2, g * 0.2, b * 0.2, a); // 非選択色は暗く
                         } else {
                             p.fill(r, g, b, a);
                         }
 
-                        // グリッド
+                        // グリッド線
                         if (gridLine) {
                             p.stroke(gridLineColor);
                             p.strokeWeight(gridLineWeight);
@@ -178,12 +187,15 @@
                             p.noStroke();
                         }
 
+                        // 1ドットを拡大して描画
                         p.rect(x * displayScale, y * displayScale, displayScale, displayScale);
                     }
                 }
 
-                // ガイド表示 (displayScaleを渡す)
-                if (showGuide) drawGuideOverlay(displayScale);
+                // ガイド（もしあれば）
+                if (typeof drawGuideOverlay === 'function') {
+                    drawGuideOverlay(displayScale);
+                }
             };
 
             // ガイド表示用の関数（同階層に追加）
@@ -463,61 +475,99 @@
                 p.redraw();
             };
             
+                    // コントロールのイベント
 
-            // コントロールのイベント
-            p.draw = () => {
-                // 1. まず全消去して透明にする
-                p.clear(); 
+            window.pxUpdate = function() {
+                console.log("pxUpdate開始");
                 
-                if (!virtualCanvas) return;
+                // 画像のチェック
+                const targetImg = window.rawImg;
+                if (!targetImg) {
+                    console.log("rawImgがありません");
+                    return;
+                }
 
-                // 2. 倍率計算
-                displayScale = p.width / virtualCanvas.width;
+                // 1. 論理サイズ（ドット数）の決定
+                // 🌟 以降の計算でも window.rawImg を使うか、
+                // 最初に変数に代入し直すと安全です
+                // 🌟 gridSize も window から取得する
+                // もし window.gridSize がなければ、デフォルト値(10など)を使う
+                const currentGridSize = window.gridSize || 10; 
 
-                // --- 🌟 背景塗り(rect)のコードは削除またはコメントアウト 🌟 ---
-                // p.noStroke();
-                // p.fill(bgColor); 
-                // p.rect(0, 0, p.width, p.height);
+                // 1. 論理サイズ（ドット数）の決定
+                const cols = Math.floor(targetImg.width / currentGridSize);
+                const rows = Math.floor(targetImg.height / currentGridSize);
+                
+                console.log("ドット数計算:", cols, "x", rows);
 
-                // 3. ピクセルループ描画
-                virtualCanvas.loadPixels();
-                for (let y = 0; y < virtualCanvas.height; y++) {
-                    for (let x = 0; x < virtualCanvas.width; x++) {
-                        const i = (x + y * virtualCanvas.width) * 4;
-                        const a = virtualCanvas.pixels[i+3];
+                // 2. 仮想キャンバス(1px=1ドット)の作成
+                let vCanvas = p.createImage(cols, rows);
+                let source = rawImg.get();
+                source.resize(cols, rows);
+                source.loadPixels();
+                
+                // 3. 量子化バッファの準備
+                const buf = new Float32Array(source.pixels.length);
+                for (let i = 0; i < source.pixels.length; i++) buf[i] = source.pixels[i];
 
-                        // 透明なら描画を飛ばす（これで下のチェッカーが見える）
-                        if (a < 10) continue; 
-
-                        const r = virtualCanvas.pixels[i];
-                        const g = virtualCanvas.pixels[i+1];
-                        const b = virtualCanvas.pixels[i+2];
-
-                        // 色の決定
-                        let currentHex = toHexStr(r, g, b);
-                        if (selectedHex && currentHex !== selectedHex) {
-                            p.fill(r * 0.2, g * 0.2, b * 0.2, a); // 非選択色は暗く
-                        } else {
-                            p.fill(r, g, b, a);
-                        }
-
-                        // グリッド線
-                        if (gridLine) {
-                            p.stroke(gridLineColor);
-                            p.strokeWeight(gridLineWeight);
-                        } else {
-                            p.noStroke();
-                        }
-
-                        // 1ドットを拡大して描画
-                        p.rect(x * displayScale, y * displayScale, displayScale, displayScale);
+                // 4. 減色・量子化の実行 (以前作った関数たちを呼ぶ)
+                if (!rawMode && useQuant) {
+                    if (quantMethod === 'kmeans') {
+                        kmeansQuantize(buf, cols, rows, quantizeStep, useDither);
+                    } else if (quantMethod === 'mediancut') {
+                        medianCutQuantize(buf, cols, rows, quantizeStep, useDither);
+                    } else if (quantMethod === 'preset') {
+                        applyPresetQuantize(buf, cols, rows); // Master Palette近似
+                    } else {
+                        applyStandardQuantize(buf, cols, rows, quantizeStep, useDither);
                     }
                 }
 
-                // ガイド（もしあれば）
-                if (typeof drawGuideOverlay === 'function') {
-                    drawGuideOverlay(displayScale);
+                // 5. 色置換(SwapMap)の適用と vCanvas への書き戻し
+                vCanvas.loadPixels();
+                usedPresetColors.clear(); 
+
+                for (let i = 0; i < buf.length; i += 4) {
+                    let hex = toHexStr(buf[i], buf[i+1], buf[i+2]);
+                    let finalHex = rawMode ? hex : (swapMap[hex] || hex);
+                    
+                    let c = p.color(finalHex);
+                    vCanvas.pixels[i]   = p.red(c);
+                    vCanvas.pixels[i+1] = p.green(c);
+                    vCanvas.pixels[i+2] = p.blue(c);
+                    vCanvas.pixels[i+3] = buf[i+3]; // Alpha維持
+
+                    if (vCanvas.pixels[i+3] > 10) {
+                        usedPresetColors.add(`${vCanvas.pixels[i]},${vCanvas.pixels[i+1]},${vCanvas.pixels[i+2]}`);
+                    }
                 }
+
+                vCanvas.updatePixels();
+                virtualCanvas = vCanvas; // 「正」のデータを更新！
+
+                // --- ここから追加 ---
+                const dScale = p.width / virtualCanvas.width;
+                const drawH = Math.floor(virtualCanvas.height * dScale);
+                if (p.height !== drawH) {
+                    p.resizeCanvas(p.width, drawH);
+                }
+                // --- ここまで追加 ---
+
+                // 6. UI更新と再描画
+                if (typeof updatePalette === 'function') updatePalette();
+                if (typeof updatePresetUnderline === 'function') updatePresetUnderline();
+
+                p.redraw(); // ここで初めて「映すだけ」の draw() が動く
+
+                console.log("virtualCanvasサイズ:", virtualCanvas.width, "x", virtualCanvas.height);
+                virtualCanvas.loadPixels();
+                console.log("最初の1ピクセルのRGBA:", 
+                    virtualCanvas.pixels[0], 
+                    virtualCanvas.pixels[1], 
+                    virtualCanvas.pixels[2], 
+                    virtualCanvas.pixels[3]
+                );
+
             };
             
         }, container);
