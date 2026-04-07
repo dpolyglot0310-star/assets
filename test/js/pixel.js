@@ -504,6 +504,14 @@
             vCanvas.updatePixels();
             virtualCanvas = vCanvas; // 「正」のデータを更新！
 
+            // --- ここから追加 ---
+            const dScale = p.width / virtualCanvas.width;
+            const drawH = Math.floor(virtualCanvas.height * dScale);
+            if (p.height !== drawH) {
+                p.resizeCanvas(p.width, drawH);
+            }
+            // --- ここまで追加 ---
+
             // 6. UI更新と再描画
             if (typeof updatePalette === 'function') updatePalette();
             if (typeof updatePresetUnderline === 'function') updatePresetUnderline();
