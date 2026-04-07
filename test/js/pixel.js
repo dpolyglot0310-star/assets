@@ -466,9 +466,15 @@
             // 1. 論理サイズ（ドット数）の決定
             // 🌟 以降の計算でも window.rawImg を使うか、
             // 最初に変数に代入し直すと安全です
-            const targetImg = window.rawImg;
-            const cols = Math.floor(targetImg.width / gridSize);
-            const rows = Math.floor(targetImg.height / gridSize);
+            // 🌟 gridSize も window から取得する
+            // もし window.gridSize がなければ、デフォルト値(10など)を使う
+            const currentGridSize = window.gridSize || 10; 
+
+            // 1. 論理サイズ（ドット数）の決定
+            const cols = Math.floor(targetImg.width / currentGridSize);
+            const rows = Math.floor(targetImg.height / currentGridSize);
+            
+            console.log("ドット数計算:", cols, "x", rows);
 
             // 2. 仮想キャンバス(1px=1ドット)の作成
             let vCanvas = p.createImage(cols, rows);
