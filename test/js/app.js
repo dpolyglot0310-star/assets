@@ -272,7 +272,7 @@ const USER = 'dpolyglot0310-star';
 
     init();
 
-    fetch('assets/last_update.txt')
+    fetch('../../assets/last_update.txt')
     .then(res => {
         if (!res.ok) throw new Error("File not found");
         return res.text();
