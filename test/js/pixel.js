@@ -340,7 +340,10 @@
                 hideCropRect();
                 pxSelected.clear(); updateBulkBar();
                 setTimeout(() => p.redraw(), 0);
-                window.pxUpdate();
+                setTimeout(() => {
+                    console.log("pxUpdateを呼び出します。rawImgの状態:", !!rawImg);
+                    window.pxUpdate();
+                }, 50);
             });
             // 元画像/加工中の切り替え
             p.viewOriginal = () => { if (sourceImg) { rawImg=sourceImg.get(); p.redraw(); } };
