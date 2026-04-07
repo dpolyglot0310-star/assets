@@ -340,7 +340,6 @@
                 hideCropRect();
                 pxSelected.clear(); updateBulkBar();
                 setTimeout(() => p.redraw(), 0);
-                pxUpdate();
                 window.pxUpdate();
             });
             // 元画像/加工中の切り替え
@@ -597,6 +596,17 @@
             showGuide = e.target.checked;
             pixelApp.redraw(); 
         };
+        
+        // JS側でIDを指定して紐付け
+        const fileInput = document.getElementById('px-file');
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files[0]) {
+                const url = URL.createObjectURL(e.target.files[0]);
+                // pixelApp または p.setImage を呼び出す
+                pixelApp.setImage(url); 
+            }
+        });
+        
     }
 
         function exportToSpreadsheet() {
