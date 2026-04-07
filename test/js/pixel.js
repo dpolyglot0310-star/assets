@@ -568,6 +568,40 @@
             }
         }
 
+        // 補助：標準的な減色・ディザリング処理
+        function applyStandardQuantize(buf, w, h, step, dither) {
+            for (let y = 0; y < h; y++) {
+                for (let x = 0; x < w; x++) {
+                    const i = (y * w + x) * 4;
+                    const oldR = buf[i], oldG = buf[i+1], oldB = buf[i+2];
+
+                    // 1. 量子化 (単純な階調削減)
+                    const newR = Math.round(oldR / step) * step;
+                    const newG = Math.round(oldG / step) * step;
+                    const newB = Math.round(oldB / step) * step;
+
+                    buf[i] = newR; buf[i+1] = newG; buf[i+2] = newB;
+
+                    // 2. 誤差拡散 (Floyd-Steinberg法)
+                    if (dither) {
+                        const errR = oldR - newR, errG = oldG - newG, errB = oldB - newB;
+                        const distribute = (nx, ny, weight) => {
+                            if (nx >= 0 && nx < w && ny >= 0 && ny < h) {
+                                const ni = (ny * w + nx) * 4;
+                                buf[ni] += errR * weight;
+                                buf[ni+1] += errG * weight;
+                                buf[ni+2] += errB * weight;
+                            }
+                        };
+                        distribute(x + 1, y,     7 / 16);
+                        distribute(x - 1, y + 1, 3 / 16);
+                        distribute(x,     y + 1, 5 / 16);
+                        distribute(x + 1, y + 1, 1 / 16);
+                    }
+                }
+            }
+        }
+
         // スライダ↔数値入力連動
         const syncNum = (rangeId, numId) => {
             const range = document.getElementById(rangeId);
