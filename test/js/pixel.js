@@ -146,7 +146,14 @@
             p.draw = () => {
                 // 1. まず全消去して透明にする
                 p.clear(); 
-                
+
+                const img = window.virtualCanvas || virtualCanvas;
+                if (!img) return;
+
+                p.noSmooth(); // ドットをクッキリさせる
+                // キャンバスいっぱいに画像を引き伸ばして描画
+                p.image(img, 0, 0, p.width, p.height);
+
                 if (!virtualCanvas) return;
 
                 // 2. 倍率計算
@@ -159,6 +166,8 @@
 
                 // 3. ピクセルループ描画
                 virtualCanvas.loadPixels();
+                
+                /*
                 for (let y = 0; y < virtualCanvas.height; y++) {
                     for (let x = 0; x < virtualCanvas.width; x++) {
                         const i = (x + y * virtualCanvas.width) * 4;
@@ -191,6 +200,9 @@
                         p.rect(x * displayScale, y * displayScale, displayScale, displayScale);
                     }
                 }
+                */
+                
+                
 
                 // ガイド（もしあれば）
                 if (typeof drawGuideOverlay === 'function') {
@@ -486,7 +498,7 @@
                     console.log("rawImgがありません");
                     return;
                 }
-
+                
                 // 1. 論理サイズ（ドット数）の決定
                 // 🌟 以降の計算でも window.rawImg を使うか、
                 // 最初に変数に代入し直すと安全です
@@ -531,6 +543,8 @@
                 for (let i = 0; i < buf.length; i += 4) {
                     let hex = toHexStr(buf[i], buf[i+1], buf[i+2]);
                     let finalHex = rawMode ? hex : (swapMap[hex] || hex);
+                    
+                    if (i === 0) console.log("変換テスト:", hex, "->", finalHex); // 🌟 ログ追加
                     
                     // 🌟 p.color を使わず、16進数から数値を直接取り出す
                     const r = parseInt(finalHex.slice(1, 3), 16);
