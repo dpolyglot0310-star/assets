@@ -527,18 +527,23 @@
                 vCanvas.loadPixels();
                 usedPresetColors.clear(); 
 
+                // window.pxUpdate のループ内を書き換え
                 for (let i = 0; i < buf.length; i += 4) {
                     let hex = toHexStr(buf[i], buf[i+1], buf[i+2]);
                     let finalHex = rawMode ? hex : (swapMap[hex] || hex);
                     
-                    let c = p.color(finalHex);
-                    vCanvas.pixels[i]   = p.red(c);
-                    vCanvas.pixels[i+1] = p.green(c);
-                    vCanvas.pixels[i+2] = p.blue(c);
-                    vCanvas.pixels[i+3] = buf[i+3]; // Alpha維持
+                    // 🌟 p.color を使わず、16進数から数値を直接取り出す
+                    const r = parseInt(finalHex.slice(1, 3), 16);
+                    const g = parseInt(finalHex.slice(3, 5), 16);
+                    const b = parseInt(finalHex.slice(5, 7), 16);
+
+                    vCanvas.pixels[i]   = r;
+                    vCanvas.pixels[i+1] = g;
+                    vCanvas.pixels[i+2] = b;
+                    vCanvas.pixels[i+3] = buf[i+3]; // Alpha（透明度）をそのまま戻す
 
                     if (vCanvas.pixels[i+3] > 10) {
-                        usedPresetColors.add(`${vCanvas.pixels[i]},${vCanvas.pixels[i+1]},${vCanvas.pixels[i+2]}`);
+                        usedPresetColors.add(`${r},${g},${b}`);
                     }
                 }
 
