@@ -489,6 +489,7 @@
             
                     // コントロールのイベント
 
+
             window.pxUpdate = function() {
                 console.log("pxUpdate開始");
                 
@@ -499,10 +500,10 @@
                     return;
                 }
 
-                // --- 設定値の同期 (windowから最新を取得し、未定義ならデフォルト値を代入) ---
+                // --- 設定値の同期 (windowオブジェクトから最新を確実に取得) ---
                 const currentGridSize = parseInt(window.gridSize) || 10;
                 const currentStep     = parseInt(window.quantizeStep) || 32;
-                const currentMethod   = window.quantMethod || 'standard'; // ★ここが原因でした
+                const currentMethod   = window.quantMethod || 'standard'; 
                 const currentRawMode  = window.rawMode || false;
                 const currentUseQuant = (window.useQuant !== undefined) ? window.useQuant : true;
                 const currentUseDither = (window.useDither !== undefined) ? window.useDither : true;
@@ -515,10 +516,9 @@
                 console.log("ドット数計算:", cols, "x", rows);
 
                 // 2. 仮想キャンバスとソースデータの作成
+                // 🌟 copyを使うことで、resizeによるデータの劣化や透明度の消失を防ぎます
                 let vCanvas = p.createImage(cols, rows);
                 let source = p.createImage(cols, rows);
-
-                // resizeを使わずcopyを使うことでアルファ値と色を保護
                 source.copy(targetImg, 0, 0, targetImg.width, targetImg.height, 0, 0, cols, rows);
                 source.loadPixels();
                 
@@ -528,7 +528,7 @@
                     buf[i] = source.pixels[i];
                 }
 
-                // 4. 減色・量子化の実行 (current... 変数を使用)
+                // 4. 減色・量子化の実行 (currentMethod を使用するように修正)
                 if (!currentRawMode && currentUseQuant) {
                     if (currentMethod === 'kmeans') {
                         kmeansQuantize(buf, cols, rows, currentStep, currentUseDither);
@@ -548,6 +548,7 @@
                 for (let i = 0; i < buf.length; i += 4) {
                     let r = buf[i], g = buf[i+1], b = buf[i+2], a = buf[i+3];
                     
+                    // 透明度10未満は描画しない（透明として扱う）
                     if (a < 10) {
                         vCanvas.pixels[i+3] = 0;
                         continue;
@@ -556,7 +557,7 @@
                     let hex = toHexStr(r, g, b);
                     let finalHex = currentRawMode ? hex : (swapMap[hex] || hex);
                     
-                    // HEXからRGB値を抽出
+                    // HEX文字列 (#RRGGBB) から直接RGB値を抽出して代入
                     const fr = parseInt(finalHex.slice(1, 3), 16);
                     const fg = parseInt(finalHex.slice(3, 5), 16);
                     const fb = parseInt(finalHex.slice(5, 7), 16);
@@ -566,6 +567,7 @@
                     vCanvas.pixels[i+2] = fb;
                     vCanvas.pixels[i+3] = a;
 
+                    // パレットの下線用Setに「R,G,B」形式で保存
                     usedPresetColors.add(`${fr},${fg},${fb}`);
                 }
 
@@ -573,20 +575,25 @@
                 window.virtualCanvas = vCanvas; 
                 virtualCanvas = vCanvas; 
 
-                // キャンバスのリサイズ処理
+                // 描画領域（キャンバスサイズ）の自動調整
                 const dScale = p.width / virtualCanvas.width;
                 const drawH = Math.floor(virtualCanvas.height * dScale);
                 if (p.height !== drawH) {
                     p.resizeCanvas(p.width, drawH);
                 }
 
-                // 6. UI更新と再描画
+                // 6. UI（パレット等）の更新とp5.jsの再描画
                 if (typeof updatePalette === 'function') updatePalette();
                 if (typeof updatePresetUnderline === 'function') updatePresetUnderline();
 
                 p.redraw();
+                
                 console.log("pxUpdate完了。使用色数:", usedPresetColors.size);
+                if (usedPresetColors.size > 0) {
+                    console.log("使用されている色の例:", Array.from(usedPresetColors)[0]);
+                }
             };
+
 
             
         }, container);
