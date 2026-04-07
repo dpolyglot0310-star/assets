@@ -324,6 +324,7 @@
             const wrap = () => document.getElementById('pixel-app-container').closest('.px-canvas-wrap');
 
             p.setImage = (url) => p.loadImage(url, img => {
+                console.log("画像読み込み成功:", img.width, "x", img.height); // ←これを入れる
                 sourceImg = img;
                 rawImg = img.get(); // ここで「生の画像」がセットされる
                 swapMap={}; selectedHex=null; history=[];
@@ -340,6 +341,7 @@
                 pxSelected.clear(); updateBulkBar();
                 setTimeout(() => p.redraw(), 0);
                 pxUpdate();
+                window.pxUpdate();
             });
             // 元画像/加工中の切り替え
             p.viewOriginal = () => { if (sourceImg) { rawImg=sourceImg.get(); p.redraw(); } };
@@ -453,7 +455,11 @@
         // コントロールのイベント
 
         window.pxUpdate = function() {
-            if (!rawImg) return;
+            console.log("pxUpdate開始"); // ←これが出るか確認
+            if (!rawImg) {
+                console.warn("rawImgがありません");
+                return;
+            }
 
             // 1. 論理サイズ（ドット数）の決定
             const cols = Math.floor(rawImg.width / gridSize);
@@ -517,6 +523,16 @@
             if (typeof updatePresetUnderline === 'function') updatePresetUnderline();
 
             p.redraw(); // ここで初めて「映すだけ」の draw() が動く
+
+            console.log("virtualCanvasサイズ:", virtualCanvas.width, "x", virtualCanvas.height);
+            virtualCanvas.loadPixels();
+            console.log("最初の1ピクセルのRGBA:", 
+                virtualCanvas.pixels[0], 
+                virtualCanvas.pixels[1], 
+                virtualCanvas.pixels[2], 
+                virtualCanvas.pixels[3]
+            );
+
         };
 
         // 補助：プリセット近似処理の分離
@@ -969,13 +985,7 @@
                 setTimeout(() => URL.revokeObjectURL(url), 60000);
             });
     }
-    
-    // pixel.js の末尾に追加 20260401 Gemini
-    window.pxUpdate = function() {
-        if (typeof redraw === 'function') {
-            redraw();
-        }
-    };
+
 
     function sendToPreview() {
         const voxelData = getVoxelData(); // 先ほど作った関数でデータを抽出
