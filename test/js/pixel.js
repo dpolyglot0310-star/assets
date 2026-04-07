@@ -1217,6 +1217,54 @@
     // 初期化実行
     initMasterPresetTable();
 
+    // --- HTML要素とJS変数の同期設定 ---
+    const setupBridge = () => {
+        const sync = (id, windowKey, event = 'input') => {
+            const el = document.getElementById(id);
+            if (!el) return;
+
+            // 初期値をwindowにセット
+            window[windowKey] = (el.type === 'checkbox') ? el.checked : el.value;
+
+            // 変更時にwindow値を更新して再計算
+            el.addEventListener(event, () => {
+                window[windowKey] = (el.type === 'checkbox') ? el.checked : el.value;
+                
+                // 数値入力やレンジの場合は数値化
+                if (el.type === 'range' || el.type === 'number') {
+                    window[windowKey] = parseFloat(el.value);
+                }
+
+                console.log(`UI変更: ${windowKey} = ${window[windowKey]}`);
+                if (typeof pxUpdate === 'function') pxUpdate();
+            });
+        };
+
+        // HTMLの各IDと、JS側で使っている変数名を紐付け
+        sync('px-grid', 'gridSize');            // Pixel Size
+        sync('px-grid-num', 'gridSize');        // Pixel Size (数字入力)
+        sync('px-color', 'quantizeStep');       // 減色ステップ
+        sync('px-color-num', 'quantizeStep');   // 減色ステップ (数字入力)
+        sync('px-quant', 'useQuant', 'change'); // 減色チェック
+        sync('px-quant-method', 'quantMethod', 'change'); // 減色手法
+        sync('px-dither', 'useDither', 'change'); // ディザリング
+        sync('px-raw', 'rawMode', 'change');    // Rawモード
+    };
+
+    // 実行
+    setupBridge();
+
+    // 「選択色のみで減色実行」ボタンの有効化
+    const applyBtn = document.getElementById('btn-apply-preset');
+    if (applyBtn) {
+        applyBtn.onclick = () => {
+            window.quantMethod = 'preset';
+            const methodSelect = document.getElementById('px-quant-method');
+            if (methodSelect) methodSelect.value = 'preset';
+            pxUpdate();
+        };
+    }
+
     // 減色の実行ボタン
     document.getElementById('btn-apply-preset').onclick = () => {
         if (activeMasterColors.size === 0) return alert("色を選択してください");
