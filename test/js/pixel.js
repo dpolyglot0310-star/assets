@@ -11,8 +11,8 @@
     let usedPresetColors = new Set();
 
     // --- 仮想キャンバス（論理データ） ---
-    let virtualCanvas = null; // p5.Imageオブジェクト (実データ: 幅=ドット数, 高さ=ドット数)
-    let originalImage = null; // 読み込んだままの原寸画像 (リサイズ、クロップのソース)
+    let rawImg = null;       // ユーザーがアップロードした「加工前」のオリジナル画像
+    let virtualCanvas = null; // pxUpdateが生成した「1px=1ドット」のデータ
     let displayScale = 1.0;    // 画面に表示する際の拡大率
 
     // --- 状態管理 ---
@@ -335,7 +335,8 @@
             const wrap = () => document.getElementById('pixel-app-container').closest('.px-canvas-wrap');
 
             p.setImage = (url) => p.loadImage(url, img => {
-                sourceImg=img; rawImg=img.get();
+                sourceImg = img;
+                rawImg = img.get(); // ここで「生の画像」がセットされる
                 swapMap={}; selectedHex=null; history=[];
                 document.getElementById('px-img-info').textContent = '元画像: ' + img.width + ' × ' + img.height + ' px';
                 document.getElementById('px-crop-btn').style.display='inline-block';
@@ -349,6 +350,7 @@
                 hideCropRect();
                 pxSelected.clear(); updateBulkBar();
                 setTimeout(() => p.redraw(), 0);
+                pxUpdate();
             });
             // 元画像/加工中の切り替え
             p.viewOriginal = () => { if (sourceImg) { rawImg=sourceImg.get(); p.redraw(); } };
