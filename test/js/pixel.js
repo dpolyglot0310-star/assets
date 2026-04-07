@@ -326,7 +326,7 @@
             p.setImage = (url) => p.loadImage(url, img => {
                 console.log("画像読み込み成功:", img.width, "x", img.height); // ←これを入れる
                 sourceImg = img;
-                rawImg = img.get(); // ここで「生の画像」がセットされる
+                window.rawImg = img.get(); // ここで「生の画像」がセットされる
                 swapMap={}; selectedHex=null; history=[];
                 document.getElementById('px-img-info').textContent = '元画像: ' + img.width + ' × ' + img.height + ' px';
                 document.getElementById('px-crop-btn').style.display='inline-block';
@@ -341,7 +341,7 @@
                 pxSelected.clear(); updateBulkBar();
                 setTimeout(() => p.redraw(), 0);
                 setTimeout(() => {
-                    console.log("pxUpdateを呼び出します。rawImgの状態:", !!rawImg);
+                    console.log("pxUpdateを呼び出します。rawImgの状態:", !!window.rawImg);
                     window.pxUpdate();
                 }, 50);
             });
@@ -458,14 +458,17 @@
 
         window.pxUpdate = function() {
             console.log("pxUpdate開始"); // ←これが出るか確認
-            if (!rawImg) {
+            if (!window.rawImg) {
                 console.warn("rawImgがありません");
                 return;
             }
 
             // 1. 論理サイズ（ドット数）の決定
-            const cols = Math.floor(rawImg.width / gridSize);
-            const rows = Math.floor(rawImg.height / gridSize);
+            // 🌟 以降の計算でも window.rawImg を使うか、
+            // 最初に変数に代入し直すと安全です
+            const targetImg = window.rawImg;
+            const cols = Math.floor(targetImg.width / gridSize);
+            const rows = Math.floor(targetImg.height / gridSize);
 
             // 2. 仮想キャンバス(1px=1ドット)の作成
             let vCanvas = p.createImage(cols, rows);
