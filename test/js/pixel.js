@@ -562,7 +562,8 @@
                 if (typeof updatePalette === 'function') updatePalette();
                 if (typeof updatePresetUnderline === 'function') updatePresetUnderline();
 
-                p.redraw(); // ここで初めて「映すだけ」の draw() が動く
+                window.virtualCanvas = vCanvas; // 🌟 明示的に共通の場所に置く
+                p.redraw();
 
                 console.log("virtualCanvasサイズ:", virtualCanvas.width, "x", virtualCanvas.height);
                 virtualCanvas.loadPixels();
