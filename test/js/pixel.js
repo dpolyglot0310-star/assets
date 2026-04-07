@@ -498,40 +498,49 @@
                     console.log("rawImgがありません");
                     return;
                 }
-                
-                // 1. 論理サイズ（ドット数）の決定
-                // 🌟 以降の計算でも window.rawImg を使うか、
-                // 最初に変数に代入し直すと安全です
-                // 🌟 gridSize も window から取得する
-                // もし window.gridSize がなければ、デフォルト値(10など)を使う
-                const currentGridSize = window.gridSize || 10; 
+
+                // --- 設定値の同期 (windowから最新を取得) ---
+                const currentGridSize = window.gridSize || 10;
+                const currentStep = window.quantizeStep || 32;
+                const currentMethod = window.quantMethod || 'standard';
+                const currentRawMode = window.rawMode || false;
+                const currentUseQuant = (window.useQuant !== undefined) ? window.useQuant : true;
+                const currentUseDither = (window.useDither !== undefined) ? window.useDither : true;
 
                 // 1. 論理サイズ（ドット数）の決定
                 const cols = Math.floor(targetImg.width / currentGridSize);
                 const rows = Math.floor(targetImg.height / currentGridSize);
-                
+                if (cols <= 0 || rows <= 0) return;
+
                 console.log("ドット数計算:", cols, "x", rows);
 
-                // 2. 仮想キャンバス(1px=1ドット)の作成
+                // 2. 仮想キャンバスとソースデータの作成
                 let vCanvas = p.createImage(cols, rows);
-                let source = rawImg.get();
-                source.resize(cols, rows);
+                let source = p.createImage(cols, rows);
+
+                // 🌟 resize を使わず copy を使う（ニアレストネイバーに近い挙動でデータを抜き出す）
+                source.copy(targetImg, 0, 0, targetImg.width, targetImg.height, 0, 0, cols, rows);
                 source.loadPixels();
                 
+                // データが空（透明）でないかチェック用
+                console.log("Source 1px RGBA:", source.pixels[0], source.pixels[1], source.pixels[2], source.pixels[3]);
+
                 // 3. 量子化バッファの準備
                 const buf = new Float32Array(source.pixels.length);
-                for (let i = 0; i < source.pixels.length; i++) buf[i] = source.pixels[i];
+                for (let i = 0; i < source.pixels.length; i++) {
+                    buf[i] = source.pixels[i];
+                }
 
-                // 4. 減色・量子化の実行 (以前作った関数たちを呼ぶ)
-                if (!rawMode && useQuant) {
-                    if (quantMethod === 'kmeans') {
-                        kmeansQuantize(buf, cols, rows, quantizeStep, useDither);
-                    } else if (quantMethod === 'mediancut') {
-                        medianCutQuantize(buf, cols, rows, quantizeStep, useDither);
-                    } else if (quantMethod === 'preset') {
-                        applyPresetQuantize(buf, cols, rows); // Master Palette近似
+                // 4. 減色・量子化の実行
+                if (!currentRawMode && currentUseQuant) {
+                    if (currentQuantMethod === 'kmeans') {
+                        kmeansQuantize(buf, cols, rows, currentStep, currentUseDither);
+                    } else if (currentQuantMethod === 'mediancut') {
+                        medianCutQuantize(buf, cols, rows, currentStep, currentUseDither);
+                    } else if (currentQuantMethod === 'preset') {
+                        applyPresetQuantize(buf, cols, rows);
                     } else {
-                        applyStandardQuantize(buf, cols, rows, quantizeStep, useDither);
+                        applyStandardQuantize(buf, cols, rows, currentStep, currentUseDither);
                     }
                 }
 
@@ -539,55 +548,48 @@
                 vCanvas.loadPixels();
                 usedPresetColors.clear(); 
 
-                // window.pxUpdate のループ内を書き換え
                 for (let i = 0; i < buf.length; i += 4) {
-                    let hex = toHexStr(buf[i], buf[i+1], buf[i+2]);
-                    let finalHex = rawMode ? hex : (swapMap[hex] || hex);
+                    let r = buf[i], g = buf[i+1], b = buf[i+2], a = buf[i+3];
                     
-                    if (i === 0) console.log("変換テスト:", hex, "->", finalHex); // 🌟 ログ追加
-                    
-                    // 🌟 p.color を使わず、16進数から数値を直接取り出す
-                    const r = parseInt(finalHex.slice(1, 3), 16);
-                    const g = parseInt(finalHex.slice(3, 5), 16);
-                    const b = parseInt(finalHex.slice(5, 7), 16);
-
-                    vCanvas.pixels[i]   = r;
-                    vCanvas.pixels[i+1] = g;
-                    vCanvas.pixels[i+2] = b;
-                    vCanvas.pixels[i+3] = buf[i+3]; // Alpha（透明度）をそのまま戻す
-
-                    if (vCanvas.pixels[i+3] > 10) {
-                        usedPresetColors.add(`${r},${g},${b}`);
+                    // 透明ピクセルは計算せず飛ばす
+                    if (a < 10) {
+                        vCanvas.pixels[i+3] = 0;
+                        continue;
                     }
+
+                    let hex = toHexStr(r, g, b);
+                    let finalHex = currentRawMode ? hex : (swapMap[hex] || hex);
+                    
+                    // 16進数から数値を直接取り出す（#RRGGBB 形式想定）
+                    const fr = parseInt(finalHex.slice(1, 3), 16);
+                    const fg = parseInt(finalHex.slice(3, 5), 16);
+                    const fb = parseInt(finalHex.slice(5, 7), 16);
+
+                    vCanvas.pixels[i]   = fr;
+                    vCanvas.pixels[i+1] = fg;
+                    vCanvas.pixels[i+2] = fb;
+                    vCanvas.pixels[i+3] = a;
+
+                    // パレットの下線判定用 (スペースなしカンマ区切りに統一)
+                    usedPresetColors.add(`${fr},${fg},${fb}`);
                 }
 
                 vCanvas.updatePixels();
-                virtualCanvas = vCanvas; // 「正」のデータを更新！
+                window.virtualCanvas = vCanvas; 
+                virtualCanvas = vCanvas; 
 
-                // --- ここから追加 ---
+                // --- 表示倍率とキャンバスサイズの調整 ---
                 const dScale = p.width / virtualCanvas.width;
                 const drawH = Math.floor(virtualCanvas.height * dScale);
                 if (p.height !== drawH) {
                     p.resizeCanvas(p.width, drawH);
                 }
-                // --- ここまで追加 ---
 
                 // 6. UI更新と再描画
                 if (typeof updatePalette === 'function') updatePalette();
                 if (typeof updatePresetUnderline === 'function') updatePresetUnderline();
 
-                window.virtualCanvas = vCanvas; // 🌟 明示的に共通の場所に置く
                 p.redraw();
-
-                console.log("virtualCanvasサイズ:", virtualCanvas.width, "x", virtualCanvas.height);
-                virtualCanvas.loadPixels();
-                console.log("最初の1ピクセルのRGBA:", 
-                    virtualCanvas.pixels[0], 
-                    virtualCanvas.pixels[1], 
-                    virtualCanvas.pixels[2], 
-                    virtualCanvas.pixels[3]
-                );
-
             };
             
         }, container);
