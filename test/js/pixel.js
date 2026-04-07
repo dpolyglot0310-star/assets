@@ -146,25 +146,14 @@
                 p.clear();
                 if (!virtualCanvas) return;
 
-                // 画面サイズに合わせて拡大率を決定
                 displayScale = p.width / virtualCanvas.width;
-                const drawH = virtualCanvas.height * displayScale;
 
-                // キャンバス高さが合っていない場合はリサイズ
-                if (p.height !== Math.floor(drawH)) {
-                    p.resizeCanvas(p.width, Math.floor(drawH));
-                    return;
-                }
-
-                // 背景色（作業用）
+                // 背景描画
                 p.noStroke();
                 p.fill(bgColor);
                 p.rect(0, 0, p.width, p.height);
 
-                // 【高速描画】1ピクセルずつ rect を描くのではなく、Imageを拡大表示
-                // ただし、選択色ハイライトやインデックス表示が必要な場合はループ回します
-                p.noSmooth(); // ドットをクッキリさせる
-                
+                // 描画ループ開始... (ここからは今のコードでOK)
                 virtualCanvas.loadPixels();
                 for (let y = 0; y < virtualCanvas.height; y++) {
                     for (let x = 0; x < virtualCanvas.width; x++) {
