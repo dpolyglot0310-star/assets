@@ -457,9 +457,12 @@
         // コントロールのイベント
 
         window.pxUpdate = function() {
-            console.log("pxUpdate開始"); // ←これが出るか確認
-            if (!window.rawImg) {
-                console.warn("rawImgがありません");
+            console.log("pxUpdate開始");
+            
+            // 画像のチェック
+            const targetImg = window.rawImg;
+            if (!targetImg) {
+                console.log("rawImgがありません");
                 return;
             }
 
