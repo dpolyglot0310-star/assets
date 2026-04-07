@@ -499,11 +499,11 @@
                     return;
                 }
 
-                // --- 設定値の同期 (windowから最新を取得) ---
-                const currentGridSize = window.gridSize || 10;
-                const currentStep = window.quantizeStep || 32;
-                const currentMethod = window.quantMethod || 'standard';
-                const currentRawMode = window.rawMode || false;
+                // --- 設定値の同期 (windowから最新を取得し、未定義ならデフォルト値を代入) ---
+                const currentGridSize = parseInt(window.gridSize) || 10;
+                const currentStep     = parseInt(window.quantizeStep) || 32;
+                const currentMethod   = window.quantMethod || 'standard'; // ★ここが原因でした
+                const currentRawMode  = window.rawMode || false;
                 const currentUseQuant = (window.useQuant !== undefined) ? window.useQuant : true;
                 const currentUseDither = (window.useDither !== undefined) ? window.useDither : true;
 
@@ -518,26 +518,23 @@
                 let vCanvas = p.createImage(cols, rows);
                 let source = p.createImage(cols, rows);
 
-                // 🌟 resize を使わず copy を使う（ニアレストネイバーに近い挙動でデータを抜き出す）
+                // resizeを使わずcopyを使うことでアルファ値と色を保護
                 source.copy(targetImg, 0, 0, targetImg.width, targetImg.height, 0, 0, cols, rows);
                 source.loadPixels();
                 
-                // データが空（透明）でないかチェック用
-                console.log("Source 1px RGBA:", source.pixels[0], source.pixels[1], source.pixels[2], source.pixels[3]);
-
                 // 3. 量子化バッファの準備
                 const buf = new Float32Array(source.pixels.length);
                 for (let i = 0; i < source.pixels.length; i++) {
                     buf[i] = source.pixels[i];
                 }
 
-                // 4. 減色・量子化の実行
+                // 4. 減色・量子化の実行 (current... 変数を使用)
                 if (!currentRawMode && currentUseQuant) {
-                    if (currentQuantMethod === 'kmeans') {
+                    if (currentMethod === 'kmeans') {
                         kmeansQuantize(buf, cols, rows, currentStep, currentUseDither);
-                    } else if (currentQuantMethod === 'mediancut') {
+                    } else if (currentMethod === 'mediancut') {
                         medianCutQuantize(buf, cols, rows, currentStep, currentUseDither);
-                    } else if (currentQuantMethod === 'preset') {
+                    } else if (currentMethod === 'preset') {
                         applyPresetQuantize(buf, cols, rows);
                     } else {
                         applyStandardQuantize(buf, cols, rows, currentStep, currentUseDither);
@@ -551,7 +548,6 @@
                 for (let i = 0; i < buf.length; i += 4) {
                     let r = buf[i], g = buf[i+1], b = buf[i+2], a = buf[i+3];
                     
-                    // 透明ピクセルは計算せず飛ばす
                     if (a < 10) {
                         vCanvas.pixels[i+3] = 0;
                         continue;
@@ -560,7 +556,7 @@
                     let hex = toHexStr(r, g, b);
                     let finalHex = currentRawMode ? hex : (swapMap[hex] || hex);
                     
-                    // 16進数から数値を直接取り出す（#RRGGBB 形式想定）
+                    // HEXからRGB値を抽出
                     const fr = parseInt(finalHex.slice(1, 3), 16);
                     const fg = parseInt(finalHex.slice(3, 5), 16);
                     const fb = parseInt(finalHex.slice(5, 7), 16);
@@ -570,7 +566,6 @@
                     vCanvas.pixels[i+2] = fb;
                     vCanvas.pixels[i+3] = a;
 
-                    // パレットの下線判定用 (スペースなしカンマ区切りに統一)
                     usedPresetColors.add(`${fr},${fg},${fb}`);
                 }
 
@@ -578,7 +573,7 @@
                 window.virtualCanvas = vCanvas; 
                 virtualCanvas = vCanvas; 
 
-                // --- 表示倍率とキャンバスサイズの調整 ---
+                // キャンバスのリサイズ処理
                 const dScale = p.width / virtualCanvas.width;
                 const drawH = Math.floor(virtualCanvas.height * dScale);
                 if (p.height !== drawH) {
@@ -590,7 +585,9 @@
                 if (typeof updatePresetUnderline === 'function') updatePresetUnderline();
 
                 p.redraw();
+                console.log("pxUpdate完了。使用色数:", usedPresetColors.size);
             };
+
             
         }, container);
 
