@@ -50,7 +50,7 @@
         </div>
     </div>
     <div class="px-ui">
-<input type="file" id="px-file" accept="image/*" onchange="if(this.files[0]) pixelApp.setImage(URL.createObjectURL(this.files[0]))" style="margin-bottom:12px; width:100%; color:#eee;">
+        <input type="file" id="px-file" accept="image/*" style="margin-bottom:12px; width:100%; color:#eee;">
         <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;">
             <button id="px-crop-btn" style="display:none;background:#ff6a00;color:white;border:none;padding:5px 12px;border-radius:6px;cursor:pointer;font-size:12px;" onclick="startCropUI()">✂ 範囲選択</button>
             <button id="px-crop-confirm" style="display:none;background:#28a745;color:white;border:none;padding:5px 12px;border-radius:6px;cursor:pointer;font-size:12px;" onclick="confirmCropUI()">✔ ここで切り出す</button>
