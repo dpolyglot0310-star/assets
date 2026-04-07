@@ -38,7 +38,7 @@ const USER = 'dpolyglot0310-star';
 
     async function loadAssetList() {
         try {
-            const res = await fetch(`./${BASE_PATH}/list.json?t=${Date.now()}`);
+            const res = await fetch(`../${BASE_PATH}/list.json?t=${Date.now()}`);
             if (res.ok) assetData = await res.json();
             document.getElementById('status').innerText = assetData.length + " items loaded.";
         } catch (e) { console.warn("list.json not found."); }
@@ -272,7 +272,7 @@ const USER = 'dpolyglot0310-star';
 
     init();
 
-    fetch('../../assets/last_update.txt')
+    fetch('../../assets/assets/last_update.txt')
     .then(res => {
         if (!res.ok) throw new Error("File not found");
         return res.text();
