@@ -540,6 +540,7 @@
                 p.redraw();
             };
 
+            /*
             p.pxUpdate = (gs,qs,uq,qm,dt,rm,bg,gl,glc,glw,mc,umc) => {
                 gridSize=gs; quantizeStep=qs; useQuant=uq; quantMethod=qm;
                 useDither=dt; rawMode=rm; bgColor=bg;
@@ -556,6 +557,8 @@
                     setTimeout(updateUsedColorsUI, 50); 
                 }
             };
+            */
+            
             p.pushHistory = () => {
                 if (!rawImg) return;
                 history.push(rawImg.get());
@@ -696,6 +699,19 @@
                         vCanvas.pixels[i+3] = 0;
                         continue;
                     }
+
+                // --- 6. UI（パレット等）の更新 ---
+                
+                // 🌟 ここで以前の renderPxPalette を呼び出す！
+                if (typeof renderPxPalette === 'function') {
+                    // 現在の virtualCanvas から Hexリストを抽出
+                    const palette = getHexPaletteFromCanvas(window.virtualCanvas);
+                    const selectedHex = ""; // 必要なら
+                    renderPxPalette(palette, selectedHex, swapMap || {});
+                }
+
+                p.redraw();
+                console.log("pxUpdate完了。使用色数:", usedPresetColors.size);
 
                     let hex = toHexStr(r, g, b);
                     let finalHex = currentRawMode ? hex : (swapMap[hex] || hex);
@@ -868,6 +884,21 @@
         });
         
     }
+
+        function getHexPaletteFromCanvas(vcv) {
+            if (!vcv) return [];
+            const colors = new Set();
+            vcv.loadPixels();
+            for (let i = 0; i < vcv.pixels.length; i += 4) {
+                if (vcv.pixels[i+3] < 10) continue; // 透明
+                const r = vcv.pixels[i];
+                const g = vcv.pixels[i+1];
+                const b = vcv.pixels[i+2];
+                const hex = "#" + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
+                colors.add(hex);
+            }
+            return Array.from(colors);
+        }
 
         function exportToSpreadsheet() {
             if (!virtualCanvas) return;
