@@ -144,69 +144,29 @@
 
             // コントロールのイベント
             p.draw = () => {
-                // 1. まず全消去して透明にする
-                p.clear(); 
+                p.clear();
+                const target = window.virtualCanvas || virtualCanvas;
+                if (!target) return;
 
-                const img = window.virtualCanvas || virtualCanvas;
-                if (!img) return;
+                // 背景色（ガイド色）の適用
+                const bgCol = document.getElementById('px-bg').value;
+                p.background(bgCol);
 
-                p.noSmooth(); // ドットをクッキリさせる
-                // キャンバスいっぱいに画像を引き伸ばして描画
-                p.image(img, 0, 0, p.width, p.height);
+                const zoom = parseFloat(document.getElementById('px-zoom').value) || 1;
+                const drawW = target.width * (window.gridSize * zoom);
+                const drawH = target.height * (window.gridSize * zoom);
 
-                if (!virtualCanvas) return;
+                // ドット絵の描画
+                p.noSmooth();
+                p.image(target, 0, 0, drawW, drawH);
 
-                // 2. 倍率計算
-                displayScale = p.width / virtualCanvas.width;
-
-                // --- 🌟 背景塗り(rect)のコードは削除またはコメントアウト 🌟 ---
-                // p.noStroke();
-                // p.fill(bgColor); 
-                // p.rect(0, 0, p.width, p.height);
-
-                // 3. ピクセルループ描画
-                virtualCanvas.loadPixels();
-                
-                /*
-                for (let y = 0; y < virtualCanvas.height; y++) {
-                    for (let x = 0; x < virtualCanvas.width; x++) {
-                        const i = (x + y * virtualCanvas.width) * 4;
-                        const a = virtualCanvas.pixels[i+3];
-
-                        // 透明なら描画を飛ばす（これで下のチェッカーが見える）
-                        if (a < 10) continue; 
-
-                        const r = virtualCanvas.pixels[i];
-                        const g = virtualCanvas.pixels[i+1];
-                        const b = virtualCanvas.pixels[i+2];
-
-                        // 色の決定
-                        let currentHex = toHexStr(r, g, b);
-                        if (selectedHex && currentHex !== selectedHex) {
-                            p.fill(r * 0.2, g * 0.2, b * 0.2, a); // 非選択色は暗く
-                        } else {
-                            p.fill(r, g, b, a);
-                        }
-
-                        // グリッド線
-                        if (gridLine) {
-                            p.stroke(gridLineColor);
-                            p.strokeWeight(gridLineWeight);
-                        } else {
-                            p.noStroke();
-                        }
-
-                        // 1ドットを拡大して描画
-                        p.rect(x * displayScale, y * displayScale, displayScale, displayScale);
-                    }
-                }
-                */
-                
-                
-
-                // ガイド（もしあれば）
-                if (typeof drawGuideOverlay === 'function') {
-                    drawGuideOverlay(displayScale);
+                // グリッド表示のチェック
+                if (document.getElementById('px-gridline').checked) {
+                    p.stroke(document.getElementById('px-gridline-color').value);
+                    p.strokeWeight(parseInt(document.getElementById('px-gridline-w').value));
+                    const step = window.gridSize * zoom;
+                    for (let x = 0; x <= drawW; x += step) p.line(x, 0, x, drawH);
+                    for (let y = 0; y <= drawH; y += step) p.line(0, y, drawW, y);
                 }
             };
 
