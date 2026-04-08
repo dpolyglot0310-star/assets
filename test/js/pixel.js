@@ -158,99 +158,117 @@
                 const currentStep = baseGrid * zoom;
                 const showGuide = document.getElementById('px-show-guide').checked;
                 const bgColor = document.getElementById('px-bg').value;
-                const quantMethod = document.getElementById('px-quant-method')?.value; // 🌟追加
+                const quantMethod = document.getElementById('px-quant-method')?.value;
+                const selectedHex = window.selectedHex; // 現在選択中の色
 
-                // --- 🌟 描画前に「マスターへの強制」を行うセクション ---
-                if (quantMethod === 'preset') {
-                    const masterNodes = document.querySelectorAll(`#px-preset-table input[data-rgb]`);
-                    const masterPalettes = Array.from(masterNodes).map(input => input.dataset.rgb.split(',').map(Number));
+                // --- 1. マスタープリセット情報の整理 ---
+                const masterNodes = document.querySelectorAll(`#px-preset-table input[data-rgb]`);
+                const masterPalettes = Array.from(masterNodes).map(input => ({
+                    rgb: input.dataset.rgb.split(',').map(Number),
+                    loc: input.dataset.location
+                }));
 
-                    if (masterPalettes.length > 0) {
-                        target.loadPixels();
-                        for (let i = 0; i < target.pixels.length; i += 4) {
-                            if (target.pixels[i + 3] < 10) continue; // 透明ならパス
+                // --- 2. マスターへの強制書き換え ---
+                if (quantMethod === 'preset' && masterPalettes.length > 0) {
+                    target.loadPixels();
+                    for (let i = 0; i < target.pixels.length; i += 4) {
+                        if (target.pixels[i + 3] < 10) continue;
 
-                            const r = target.pixels[i];
-                            const g = target.pixels[i + 1];
-                            const b = target.pixels[i + 2];
+                        const r = target.pixels[i], g = target.pixels[i + 1], b = target.pixels[i + 2];
+                        let minD = Infinity;
+                        let closest = masterPalettes[0].rgb;
 
-                            let minD = Infinity;
-                            let closest = [r, g, b];
-
-                            // 一番近いマスター色を探す
-                            for (const m of masterPalettes) {
-                                const d = Math.pow(r - m[0], 2) + Math.pow(g - m[1], 2) + Math.pow(b - m[2], 2);
-                                if (d < minD) {
-                                    minD = d;
-                                    closest = m;
-                                }
-                            }
-                            // targetのピクセル自体を書き換えてしまう
-                            target.pixels[i]     = closest[0];
-                            target.pixels[i + 1] = closest[1];
-                            target.pixels[i + 2] = closest[2];
+                        for (const m of masterPalettes) {
+                            const d = Math.pow(r - m.rgb[0], 2) + Math.pow(g - m.rgb[1], 2) + Math.pow(b - m.rgb[2], 2);
+                            if (d < minD) { minD = d; closest = m.rgb; }
                         }
-                        target.updatePixels();
+                        target.pixels[i] = closest[0];
+                        target.pixels[i+1] = closest[1];
+                        target.pixels[i+2] = closest[2];
                     }
+                    target.updatePixels();
                 }
 
-                // --- 2. ドット絵本体（書き換わったtargetをそのまま表示） ---
+                // --- 3. ドット絵本体の描画 ---
                 p.noSmooth();
                 p.image(target, 0, 0, target.width * currentStep, target.height * currentStep);
 
-                // --- 3. グリッド線（ここからは元のコード通り） ---
-                if (document.getElementById('px-gridline').checked) {
-                    p.stroke(document.getElementById('px-gridline-color').value);
-                    p.strokeWeight(parseInt(document.getElementById('px-gridline-w').value));
-                    for (let x = 0; x <= target.width; x++) {
-                        p.line(x * currentStep, 0, x * currentStep, target.height * currentStep);
+                // --- 4. 番号（Loc）の表示ロジック ---
+                // プリセットモードかつ、どこかの色が選択されている時だけ実行
+                if (quantMethod === 'preset' && selectedHex && currentStep > 8) {
+                    const selC = p.color(selectedHex);
+                    const sr = p.red(selC), sg = p.green(selC), sb = p.blue(selC);
+                    
+                    // 選択された色がマスターの何番(Loc)か特定
+                    let targetLoc = "";
+                    let minD_sel = Infinity;
+                    for (const m of masterPalettes) {
+                        const d = Math.pow(sr - m.rgb[0], 2) + Math.pow(sg - m.rgb[1], 2) + Math.pow(sb - m.rgb[2], 2);
+                        if (d < minD_sel) { minD_sel = d; targetLoc = m.loc; }
                     }
-                    for (let y = 0; y <= target.height; y++) {
-                        p.line(0, y * currentStep, target.width * currentStep, y * currentStep);
+
+                    if (targetLoc) {
+                        p.push();
+                        p.textAlign(p.CENTER, p.CENTER);
+                        p.textSize(currentStep * 0.5);
+                        
+                        target.loadPixels();
+                        for (let y = 0; y < target.height; y++) {
+                            for (let x = 0; x < target.width; x++) {
+                                const i = (y * target.width + x) * 4;
+                                if (target.pixels[i+3] < 10) continue;
+
+                                // 画面上のピクセルが「選択中のマスター色」と一致するか判定（誤差20以内なら一致とみなす）
+                                const d = Math.abs(target.pixels[i] - sr) + Math.abs(target.pixels[i+1] - sg) + Math.abs(target.pixels[i+2] - sb);
+                                
+                                if (d < 20) {
+                                    const lum = 0.299 * target.pixels[i] + 0.587 * target.pixels[i+1] + 0.114 * target.pixels[i+2];
+                                    p.fill(lum > 128 ? 0 : 255);
+                                    p.text(targetLoc, x * currentStep + currentStep/2, y * currentStep + currentStep/2);
+                                }
+                            }
+                        }
+                        p.pop();
                     }
                 }
 
-                // --- 4. 十字座標ガイド ---
+                // --- 5. グリッド線 ---
+                if (document.getElementById('px-gridline').checked) {
+                    p.stroke(document.getElementById('px-gridline-color').value);
+                    p.strokeWeight(parseInt(document.getElementById('px-gridline-w').value));
+                    for (let x = 0; x <= target.width; x++) p.line(x * currentStep, 0, x * currentStep, target.height * currentStep);
+                    for (let y = 0; y <= target.height; y++) p.line(0, y * currentStep, target.width * currentStep, y * currentStep);
+                }
+
+                // --- 6. 十字座標ガイド ---
                 if (showGuide && typeof guideOrigin !== 'undefined') {
                     p.push();
                     p.textAlign(p.CENTER, p.CENTER);
                     p.noStroke();
-                    
-                    const accentColor = p.color(255, 255, 0); 
-                    const subColor    = p.color(255, 255, 255); 
-                    const edgeColor   = p.color(bgColor);
-
+                    const accentColor = p.color(255, 255, 0), subColor = p.color(255, 255, 255), edgeColor = p.color(bgColor);
                     const drawText = (val, dx, dy, isAccent) => {
                         const txt = (val === 0) ? "0" : (val % 10 === 0 ? val : val % 10);
-                        const size = isAccent ? Math.max(10, currentStep * 0.5) : Math.max(8, currentStep * 0.35);
-                        p.textSize(size);
-                        
+                        p.textSize(isAccent ? Math.max(10, currentStep * 0.5) : Math.max(8, currentStep * 0.35));
                         p.fill(edgeColor);
-                        for(let ox=-1; ox<=1; ox++) {
-                            for(let oy=-1; oy<=1; oy++) {
-                                if(ox!==0 || oy!==0) p.text(txt, dx+ox, dy+oy);
-                            }
-                        }
-                        
+                        for(let ox=-1; ox<=1; ox++) for(let oy=-1; oy<=1; oy++) if(ox || oy) p.text(txt, dx+ox, dy+oy);
                         p.fill(isAccent ? accentColor : subColor);
                         p.text(txt, dx, dy);
                     };
-
                     const originYPos = guideOrigin.y * currentStep + currentStep/2;
                     const originXPos = guideOrigin.x * currentStep + currentStep/2;
-
                     for (let x = 0; x < target.width; x++) {
-                        let diff = Math.abs(x - guideOrigin.x);
-                        drawText(diff, x * currentStep + currentStep/2, originYPos, diff % 10 === 0);
+                        let d = Math.abs(x - guideOrigin.x);
+                        drawText(d, x * currentStep + currentStep/2, originYPos, d % 10 === 0);
                     }
                     for (let y = 0; y < target.height; y++) {
-                        let diff = Math.abs(y - guideOrigin.y);
-                        if (diff === 0) continue;
-                        drawText(diff, originXPos, y * currentStep + currentStep/2, diff % 10 === 0);
+                        let d = Math.abs(y - guideOrigin.y);
+                        if (d !== 0) drawText(d, originXPos, y * currentStep + currentStep/2, d % 10 === 0);
                     }
                     p.pop();
                 }
             };
+
+            
             p.applyPaint = (x, y, hex) => {
                 if (!window.virtualCanvas) return;
                 
