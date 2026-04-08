@@ -164,29 +164,44 @@
                 p.noSmooth();
                 p.image(target, 0, 0, target.width * currentStep, target.height * currentStep);
 
-                // 🌟 追加: ハイライト処理 (選択した色以外を暗くする)
+                // --- 2.5 ハイライト & 番号表示 (p.draw内) ---
                 if (typeof selectedHex !== 'undefined' && selectedHex) {
                     p.push();
                     target.loadPixels();
+                    
+                    // 現在選択されている色のマスター番号(loc)を先に取得しておく
+                    let currentLoc = "";
+                    try {
+                        const targetRgb = hexToRgbStr(selectedHex);
+                        const masterItem = document.querySelector(`#px-preset-table input[data-rgb="${targetRgb}"]`);
+                        if (masterItem) currentLoc = masterItem.dataset.location || "";
+                    } catch (e) {}
+
                     for (let y = 0; y < target.height; y++) {
                         for (let x = 0; x < target.width; x++) {
                             const col = target.get(x, y);
-                            if (p.alpha(col) < 10) continue; // 透明ドットはスルー
+                            if (p.alpha(col) < 10) continue;
 
-                            // HEXに変換して比較
                             const hex = "#" + ((1 << 24) + (p.red(col) << 16) + (p.green(col) << 8) + p.blue(col)).toString(16).slice(1);
                             
                             if (hex !== selectedHex) {
-                                // 選択色以外を半透明の黒で覆う
-                                p.fill(0, 0, 0, 160); 
+                                // 選択色以外を暗くする
+                                p.fill(0, 0, 0, 160);
                                 p.noStroke();
                                 p.rect(x * currentStep, y * currentStep, currentStep, currentStep);
                             } else {
-                                // 選択色には強調の枠線を引く (任意)
-                                p.stroke(255, 255, 0); 
-                                p.strokeWeight(1);
-                                p.noFill();
+                                // 🌟 選択色のドットの上に番号を表示
+                                p.fill(255, 255, 0); // 黄色
+                                p.noStroke();
                                 p.rect(x * currentStep, y * currentStep, currentStep, currentStep);
+                                
+                                // 番号(loc)があれば描画
+                                if (currentLoc) {
+                                    p.fill(0); // 文字色は黒（または背景に応じて）
+                                    p.textAlign(p.CENTER, p.CENTER);
+                                    p.textSize(Math.max(7, currentStep * 0.4)); // ドットサイズに合わせて調整
+                                    p.text(currentLoc, x * currentStep + currentStep/2, y * currentStep + currentStep/2);
+                                }
                             }
                         }
                     }
@@ -1247,12 +1262,21 @@
             const sw = swapMap[hv], disp = sw || hv;
             
             // --- マスターパレットから場所(loc)を取得 ---
+            // --- 安全に番号(location)を取得する (修正版) ---
             let loc = "";
             try {
-                const targetRgb = hexToRgbStr(disp); 
-                const masterItem = document.querySelector(`#px-preset-table input[data-rgb="${targetRgb}"]`);
-                if (masterItem) loc = masterItem.dataset.location || "";
-            } catch (e) {}
+                const targetRgb = hexToRgbStr(disp).replace(/\s+/g, ''); // 空白を除去して正規化
+                // ID: px-preset-table 内の全入力を取得してループで探す
+                const masterItems = document.querySelectorAll(`#px-preset-table input[data-rgb]`);
+                for (const item of masterItems) {
+                    if (item.dataset.rgb.replace(/\s+/g, '') === targetRgb) {
+                        loc = item.dataset.location || "";
+                        break;
+                    }
+                }
+            } catch (e) {
+                console.error("番号取得エラー:", e);
+            }
 
             const chip = document.createElement('div');
             chip.className = 'px-chip' + (selectedHex === hv ? ' active' : '');
