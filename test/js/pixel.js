@@ -164,6 +164,35 @@
                 p.noSmooth();
                 p.image(target, 0, 0, target.width * currentStep, target.height * currentStep);
 
+                // 🌟 追加: ハイライト処理 (選択した色以外を暗くする)
+                if (typeof selectedHex !== 'undefined' && selectedHex) {
+                    p.push();
+                    target.loadPixels();
+                    for (let y = 0; y < target.height; y++) {
+                        for (let x = 0; x < target.width; x++) {
+                            const col = target.get(x, y);
+                            if (p.alpha(col) < 10) continue; // 透明ドットはスルー
+
+                            // HEXに変換して比較
+                            const hex = "#" + ((1 << 24) + (p.red(col) << 16) + (p.green(col) << 8) + p.blue(col)).toString(16).slice(1);
+                            
+                            if (hex !== selectedHex) {
+                                // 選択色以外を半透明の黒で覆う
+                                p.fill(0, 0, 0, 160); 
+                                p.noStroke();
+                                p.rect(x * currentStep, y * currentStep, currentStep, currentStep);
+                            } else {
+                                // 選択色には強調の枠線を引く (任意)
+                                p.stroke(255, 255, 0); 
+                                p.strokeWeight(1);
+                                p.noFill();
+                                p.rect(x * currentStep, y * currentStep, currentStep, currentStep);
+                            }
+                        }
+                    }
+                    p.pop();
+                }
+
                 // --- 3. グリッド線 ---
                 if (document.getElementById('px-gridline').checked) {
                     p.stroke(document.getElementById('px-gridline-color').value);
@@ -265,29 +294,35 @@
 
             // p5.js内のクリックイベントを拡張
             p.mousePressed = () => {
-                // Canvas内かチェック
+                // 1. キャンバス外のクリックは無視
                 if (p.mouseX < 0 || p.mouseX > p.width || p.mouseY < 0 || p.mouseY > p.height) return;
 
-                const zoom = parseFloat(document.getElementById('px-zoom').value) || 1;
-                const currentStep = (window.gridSize || 10) * zoom;
-                
-                // クリックしたドット座標
-                const dotX = Math.floor(p.mouseX / currentStep);
-                const dotY = Math.floor(p.mouseY / currentStep);
+                if (window.virtualCanvas) {
+                    // 2. 表示倍率から正確なドット座標を計算
+                    const x = Math.floor(p.mouseX / (p.width / window.virtualCanvas.width));
+                    const y = Math.floor(p.mouseY / (p.height / window.virtualCanvas.height));
 
-                if (window.currentPaintMode === 'cell') {
-                    const paintColor = document.getElementById('px-paint-color').value;
-                    p.applyPaint(dotX, dotY, paintColor);
-                } else {
-                    // 通常時はガイドの移動
-                    if (typeof guideOrigin !== 'undefined') {
-                        guideOrigin.x = dotX;
-                        guideOrigin.y = dotY;
+                    const col = window.virtualCanvas.get(x, y);
+                    if (p.alpha(col) < 10) return; // 透明箇所は無視
+
+                    // 3. HEXカラーに変換
+                    const hex = "#" + ((1 << 24) + (p.red(col) << 16) + (p.green(col) << 8) + p.blue(col)).toString(16).slice(1);
+
+                    // 4. ハイライトの実行（トグル動作）
+                    // 🌟 外部から呼べるように p.highlight を介して実行するのが確実です
+                    if (typeof p.highlight === 'function') {
+                        p.highlight(hex);
+                    } else {
+                        // もし p.highlight をまだ定義していない場合は直接処理
+                        selectedHex = (selectedHex === hex ? null : hex);
+                        if (typeof renderPxPalette === 'function') {
+                            const palette = getHexPaletteFromCanvas(window.virtualCanvas);
+                            renderPxPalette(palette, selectedHex, window.swapMap || {});
+                        }
                         p.redraw();
                     }
                 }
             };
-
             // p5.jsのインスタンス内に追加
             p.applyRectPaint = (rx, ry, rw, rh, hex) => {
                 if (!window.virtualCanvas) return;
@@ -571,19 +606,53 @@
                 if (!history.length) document.getElementById('px-undo').disabled = true;
                 p.redraw();
             };
-            p.highlight = hv => { selectedHex=(selectedHex===hv?null:hv); p.redraw(); };
-            p.swap = (from,to) => {
-                // 色変更時は減色・MaxColorsを自動オフにして正確な色で操作
-                if (useQuant || useMaxColors) {
-                    useQuant=false; useMaxColors=false;
-                    document.getElementById('px-quant').checked=false;
-                    document.getElementById('px-maxcol-on').checked=false;
-                    pxUpdate();
+            // --- ハイライト機能 ---
+            p.highlight = (hv) => {
+                // 同じ色を叩いたら解除、違う色なら選択
+                selectedHex = (selectedHex === hv ? null : hv);
+                
+                // 🌟 パレット表示を更新して、どのチップが active かを同期
+                if (typeof renderPxPalette === 'function') {
+                    const palette = getHexPaletteFromCanvas(window.virtualCanvas);
+                    renderPxPalette(palette, selectedHex, window.swapMap || {});
                 }
-                if(from===to) delete swapMap[from]; else swapMap[from]=to;
                 p.redraw();
             };
-            p.resetSwap = hv => { delete swapMap[hv]; p.redraw(); };
+
+            // --- 色置換機能 ---
+            p.swap = (from, to) => {
+                // 🌟 色変更時は正確な色操作のために減色設定を自動オフにするロジック
+                if (window.useQuant || window.useMaxColors) {
+                    window.useQuant = false;
+                    window.useMaxColors = false;
+                    const qCb = document.getElementById('px-quant');
+                    const mCb = document.getElementById('px-maxcol-on');
+                    if (qCb) qCb.checked = false;
+                    if (mCb) mCb.checked = false;
+                    
+                    // 内部変数も更新して再計算
+                    if (typeof window.pxUpdate === 'function') window.pxUpdate();
+                }
+
+                // swapMap の更新
+                if (!window.swapMap) window.swapMap = {};
+                if (from === to) {
+                    delete window.swapMap[from];
+                } else {
+                    window.swapMap[from] = to;
+                }
+                
+                // 🌟 置換を反映させるために再計算と再描画
+                if (typeof window.pxUpdate === 'function') window.pxUpdate();
+                p.redraw();
+            };
+
+            // --- 置換リセット ---
+            p.resetSwap = (hv) => {
+                if (window.swapMap) delete window.swapMap[hv];
+                if (typeof window.pxUpdate === 'function') window.pxUpdate();
+                p.redraw();
+            };
             p.getSwapMap  = () => swapMap;
             p.getSourceImg= () => sourceImg;
             p.startPaint = (mode) => {
@@ -885,20 +954,7 @@
         
     }
 
-        function getHexPaletteFromCanvas(vcv) {
-            if (!vcv) return [];
-            const colors = new Set();
-            vcv.loadPixels();
-            for (let i = 0; i < vcv.pixels.length; i += 4) {
-                if (vcv.pixels[i+3] < 10) continue; // 透明
-                const r = vcv.pixels[i];
-                const g = vcv.pixels[i+1];
-                const b = vcv.pixels[i+2];
-                const hex = "#" + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
-                colors.add(hex);
-            }
-            return Array.from(colors);
-        }
+
 
         function exportToSpreadsheet() {
             if (!virtualCanvas) return;
@@ -1184,33 +1240,31 @@
         const div = document.getElementById('px-palette');
         if (!div) return;
 
-        // 1. 使用色数の表示を復活
+        // 1. 使用色数の表示
         div.innerHTML = `<div style="grid-column:1/-1;font-size:11px;color:#aaa;margin-bottom:4px;">使用色数: <b style="color:#00ffcc;">${palette.length}</b></div>`;
 
         palette.forEach((hv, i) => {
             const sw = swapMap[hv], disp = sw || hv;
             
-            // --- 安全に番号(location)を取得する ---
+            // --- マスターパレットから場所(loc)を取得 ---
             let loc = "";
             try {
-                // マスターパレットのUIから直接探す（失敗しても無視して次へ進む）
-                const targetRgb = hexToRgbStr(disp); // 下の補助関数を使用
+                const targetRgb = hexToRgbStr(disp); 
                 const masterItem = document.querySelector(`#px-preset-table input[data-rgb="${targetRgb}"]`);
                 if (masterItem) loc = masterItem.dataset.location || "";
-            } catch (e) { 
-                // 番号取得でエラーが起きても、パレット表示自体は止めない
-            }
+            } catch (e) {}
 
             const chip = document.createElement('div');
             chip.className = 'px-chip' + (selectedHex === hv ? ' active' : '');
             chip.style.position = 'relative';
 
+            // 2. チェックボックス（一括処理用）
             const cb = document.createElement('input');
             cb.type = 'checkbox';
-            cb.checked = pxSelected.has(hv);
+            cb.checked = (window.pxSelected && pxSelected.has(hv));
             cb.onchange = () => {
                 if (cb.checked) pxSelected.add(hv); else pxSelected.delete(hv);
-                updateBulkBar();
+                if (typeof updateBulkBar === 'function') updateBulkBar();
             };
             chip.appendChild(cb);
 
@@ -1223,12 +1277,19 @@
                 ${sw ? `<br><button class="px-reset" data-h="${hv}">↩</button>` : ''}
             `;
 
-            // クリックイベント（pixelAppが未定義でも壊れないようにガード）
-            inner.querySelector('.px-box').onclick = () => { if(window.pixelApp) pixelApp.highlight(hv); };
-            inner.querySelector('input[type="color"]').oninput = e => { if(window.pixelApp) pixelApp.swap(hv, e.target.value); };
+            // 3. 各ボタンのイベント（pixelAppを介して実行）
+            inner.querySelector('.px-box').onclick = () => { 
+                if(window.pixelApp) pixelApp.highlight(hv); 
+            };
+            inner.querySelector('input[type="color"]').oninput = e => { 
+                if(window.pixelApp) pixelApp.swap(hv, e.target.value); 
+            };
             
             const rb = inner.querySelector('.px-reset');
-            if (rb) rb.onclick = e => { e.stopPropagation(); if(window.pixelApp) pixelApp.resetSwap(hv); };
+            if (rb) rb.onclick = e => { 
+                e.stopPropagation(); 
+                if(window.pixelApp) pixelApp.resetSwap(hv); 
+            };
 
             chip.appendChild(inner);
             div.appendChild(chip);
@@ -1242,6 +1303,20 @@
         const g = parseInt(hex.slice(3, 5), 16);
         const b = parseInt(hex.slice(5, 7), 16);
         return `${r},${g},${b}`;
+    }
+
+    // 1-2. virtualCanvas から現在使われている色を抜き出す補助関数
+    function getHexPaletteFromCanvas(vcv) {
+        if (!vcv) return [];
+        const colors = new Set();
+        vcv.loadPixels();
+        for (let i = 0; i < vcv.pixels.length; i += 4) {
+            if (vcv.pixels[i+3] < 10) continue; // 透明
+            const r = vcv.pixels[i], g = vcv.pixels[i+1], b = vcv.pixels[i+2];
+            const hex = "#" + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
+            colors.add(hex);
+        }
+        return Array.from(colors);
     }
 
     function updateBulkBar() {
