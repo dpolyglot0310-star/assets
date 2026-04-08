@@ -150,169 +150,87 @@
 
             p.draw = () => {
                 p.clear();
-                if (!rawImg && !sourceImg) return;
-                if (!rawImg) return;
+                    
+                    // 1. ターゲット（計算・描画の元）を正しく取得
+                    // virtualCanvas がある場合はそれを優先、なければ rawImg
+                    const target = window.virtualCanvas || rawImg;
+                    if (!target) return;
 
-                // --- 1. キャンバスとグリッドのサイズ計算 ---
-                // ここを以前の方式（gridSize基準）に固定してズレを防止
-                const cols = p.floor(p.width / gridSize);
-                const rows = p.floor(p.height / gridSize);
-                
-                // 表示上の高さを計算（画像の比率に合わせる）
-                const drawH = rows * gridSize;
-                if (p.height !== drawH) {
-                    p.resizeCanvas(p.width, drawH);
-                    return;
-                }
+                    // 表示倍率（ズーム等がある場合）
+                    const zoom = (typeof pxZoom !== 'undefined') ? parseFloat(pxZoom.value) : 1;
+                    const currentStep = gridSize * zoom;
 
-                // 計算用の一時イメージ
-                const temp = rawImg.get(); 
-                temp.resize(cols, rows); 
-                temp.loadPixels();
+                    // 2. キャンバスサイズの同期（ズレ防止）
+                    const drawW = target.width * currentStep;
+                    const drawH = target.height * currentStep;
+                    if (p.width !== drawW || p.height !== drawH) {
+                        p.resizeCanvas(drawW, drawH);
+                        return; 
+                    }
 
-                const buf = new Float32Array(temp.pixels.length);
-                for (let i = 0; i < temp.pixels.length; i += 4) {
-                    buf[i]   = temp.pixels[i];
-                    buf[i+1] = temp.pixels[i+1];
-                    buf[i+2] = temp.pixels[i+2];
-                    buf[i+3] = temp.pixels[i+3];
-                }
+                    // マスターパレットの情報を事前取得（ループ外でやるのが鉄則）
+                    const masterNodes = document.querySelectorAll(`#px-preset-table input[data-rgb]`);
+                    const masterPalettes = Array.from(masterNodes).map(input => ({
+                        rgb: input.dataset.rgb.split(',').map(Number),
+                        loc: input.dataset.location
+                    }));
 
-                // --- 2. 量子化処理 (Median Cut, K-means等) ---
-                if (!rawMode && useQuant) {
-                    if (quantMethod === 'kmeans') {
-                        kmeansQuantize(buf, cols, rows, quantizeStep, useDither);
-                    } else if (quantMethod === 'mediancut') {
-                        medianCutQuantize(buf, cols, rows, quantizeStep, useDither);
-                    } else {
-                        const qs = quantizeStep, qt = v => Math.max(0, Math.min(255, Math.round(v / qs) * qs));
-                        if (useDither) {
-                            for (let y = 0; y < rows; y++) for (let x = 0; x < cols; x++) {
-                                const i = (x + y * cols) * 4;
-                                const nr = qt(buf[i]), ng = qt(buf[i+1]), nb = qt(buf[i+2]);
-                                const er = buf[i] - nr, eg = buf[i+1] - ng, eb = buf[i+2] - nb;
-                                buf[i] = nr; buf[i+1] = ng; buf[i+2] = nb;
-                                sp(buf, x + 1, y, cols, rows, er, eg, eb, 7 / 16);
-                                sp(buf, x - 1, y + 1, cols, rows, er, eg, eb, 3 / 16);
-                                sp(buf, x, y + 1, cols, rows, er, eg, eb, 5 / 16);
-                                sp(buf, x + 1, y + 1, cols, rows, er, eg, eb, 1 / 16);
+                    target.loadPixels();
+
+                    // 3. メインループ（ターゲットのピクセルを1つずつ精査）
+                    for (let y = 0; y < target.height; y++) {
+                        for (let x = 0; x < target.width; x++) {
+                            const i = (y * target.width + x) * 4;
+                            const r = target.pixels[i];
+                            const g = target.pixels[i+1];
+                            const b = target.pixels[i+2];
+                            const a = target.pixels[i+3];
+
+                            if (a < 10) continue; // 透明ドットは無視
+
+                            let finalR = r, finalG = g, finalB = b;
+                            let currentLoc = "";
+
+                            // --- 【重要】マスタープリセットモードの強制絞り込み ---
+                            if (!rawMode && quantMethod === 'preset') {
+                                let minD = Infinity;
+                                // ここで「ターゲットの色」を「マスターの色」へすり替える
+                                for (const m of masterPalettes) {
+                                    const d = Math.pow(r - m.rgb[0], 2) + Math.pow(g - m.rgb[1], 2) + Math.pow(b - m.rgb[2], 2);
+                                    if (d < minD) {
+                                        minD = d;
+                                        finalR = m.rgb[0];
+                                        finalG = m.rgb[1];
+                                        finalB = m.rgb[2];
+                                        currentLoc = m.loc;
+                                    }
+                                }
                             }
-                        } else {
-                            for (let i = 0; i < buf.length; i += 4) { buf[i] = qt(buf[i]); buf[i+1] = qt(buf[i+1]); buf[i+2] = qt(buf[i+2]); }
-                        }
-                    }
-                }
 
-                const quantColors = new Array(cols * rows);
-                for (let j = 0; j < cols * rows; j++) {
-                    const i = j * 4;
-                    quantColors[j] = toHexStr(buf[i], buf[i+1], buf[i+2]);
-                }
+                            const hex = toHexStr(finalR, finalG, finalB);
 
-                // --- 3. 色の絞り込み (Preset判定) ---
-                const paletteSet = new Set();
-                quantColors.forEach(h => paletteSet.add(h));
-                const sorted = Array.from(paletteSet).sort((a, b) => lum(p, b) - lum(p, a));
-                const limited = (rawMode || !useMaxColors) ? sorted : sorted.slice(0, maxColors);
-                const remap = {};
-
-                let finalColors;
-                if (!rawMode && quantMethod === 'preset') {
-                    const targetPalettes = Array.from(activeMasterColors).map(str => str.split(',').map(Number));
-                    if (typeof usedPresetColors !== 'undefined') usedPresetColors.clear();
-
-                    finalColors = quantColors.map(h => {
-                        if (targetPalettes.length === 0) return h;
-                        const c = p.color(h), r = p.red(c), g = p.green(c), b = p.blue(c);
-                        let minD = Infinity, closestRGB = targetPalettes[0];
-                        for (const pal of targetPalettes) {
-                            const d = Math.pow(r - pal[0], 2) + Math.pow(g - pal[1], 2) + Math.pow(b - pal[2], 2);
-                            if (d < minD) { minD = d; closestRGB = pal; }
-                        }
-                        if (typeof usedPresetColors !== 'undefined') usedPresetColors.add(closestRGB.join(','));
-                        return p.color(closestRGB[0], closestRGB[1], closestRGB[2]).toString('#rrggbb');
-                    });
-                    if (typeof updatePresetUnderline === 'function') setTimeout(updatePresetUnderline, 0);
-                } else {
-                    if (!rawMode && useMaxColors && limited.length < sorted.length) {
-                        sorted.forEach(h => {
-                            if (!limited.includes(h)) {
-                                let best = limited[0], bestD = Infinity;
-                                const c = p.color(h), r = p.red(c), g = p.green(c), b = p.blue(c);
-                                limited.forEach(lh => {
-                                    const lc = p.color(lh);
-                                    const d = (p.red(lc) - r)**2 + (p.green(lc) - g)**2 + (p.blue(lc) - b)**2;
-                                    if (d < bestD) { bestD = d; best = lh; }
-                                });
-                                remap[h] = best;
+                            // 4. 描画
+                            p.noStroke();
+                            if (selectedHex && hex !== selectedHex) {
+                                p.fill(finalR * 0.2, finalG * 0.2, finalB * 0.2, a); // 非選択は暗く
+                            } else {
+                                p.fill(finalR, finalG, finalB, a); // マスター（確定）色で塗る
                             }
-                        });
-                    }
-                    finalColors = quantColors.map(h => remap[h] || h);
-                }
+                            
+                            p.rect(x * currentStep, y * currentStep, currentStep, currentStep);
 
-                // --- 4. 描画フェーズ ---
-                p.noSmooth();
-                if (gridLine) { p.stroke(gridLineColor); p.strokeWeight(gridLineWeight); } else { p.noStroke(); }
-                const finalPalette = new Set();
-
-                for (let y = 0; y < rows; y++) {
-                    for (let x = 0; x < cols; x++) {
-                        const idx = x + y * cols;
-                        const i = idx * 4;
-                        const fc = finalColors[idx];
-                        const dh = rawMode ? fc : (swapMap[fc] || fc);
-                        const alpha = buf[i + 3];
-
-                        if (alpha > 10) finalPalette.add(dh);
-
-                        const dc = p.color(dh);
-                        let r = p.red(dc), g = p.green(dc), b = p.blue(dc);
-                        
-                        // ハイライト処理
-                        if (selectedHex && dh !== selectedHex) { r *= 0.2; g *= 0.2; b *= 0.2; }
-
-                        p.fill(r, g, b, alpha);
-                        // 🌟 座標計算を修正：x*gridSize で描画することで拡大ズレを防止
-                        p.rect(x * gridSize, y * gridSize, gridSize, gridSize);
-                    }
-                }
-
-                const finalSorted = Array.from(finalPalette).sort((a, b) => lum(p, b) - lum(p, a));
-
-                // --- 5. 番号(loc)表示 ---
-                if (selectedHex && gridSize > 8) {
-                    let displayTxt = "";
-                    if (!rawMode && quantMethod === 'preset') {
-                        const selC = p.color(selectedHex);
-                        const sr = p.red(selC), sg = p.green(selC), sb = p.blue(selC);
-                        const masterItems = document.querySelectorAll(`#px-preset-table input[data-rgb]`);
-                        let minD = 20; // 判定を少し広げて確実にヒットさせる
-                        for (const item of masterItems) {
-                            const mRgb = item.dataset.rgb.split(',').map(Number);
-                            const d = Math.abs(mRgb[0] - sr) + Math.abs(mRgb[1] - sg) + Math.abs(mRgb[2] - sb);
-                            if (d < minD) { displayTxt = item.dataset.location; break; }
-                        }
-                    } else {
-                        displayTxt = String(finalSorted.indexOf(selectedHex));
-                    }
-
-                    if (displayTxt !== "") {
-                        p.push();
-                        p.textAlign(p.CENTER, p.CENTER);
-                        p.textSize(gridSize * 0.6);
-                        for (let y = 0; y < rows; y++) for (let x = 0; x < cols; x++) {
-                            const fc = finalColors[x + y * cols];
-                            const dh = rawMode ? fc : (swapMap[fc] || fc);
-                            if (dh === selectedHex) {
-                                p.fill(lum(p, dh) > 128 ? 0 : 255);
-                                p.noStroke();
-                                p.text(displayTxt, x * gridSize + gridSize/2, y * gridSize + gridSize/2);
+                            // 5. 番号表示 (マスターモードかつ選択時のみ)
+                            if (quantMethod === 'preset' && selectedHex === hex && currentLoc && currentStep > 8) {
+                                p.push();
+                                p.textAlign(p.CENTER, p.CENTER);
+                                const lumValue = 0.299 * finalR + 0.587 * finalG + 0.114 * finalB;
+                                p.fill(lumValue > 128 ? 0 : 255);
+                                p.textSize(currentStep * 0.5);
+                                p.text(currentLoc, x * currentStep + currentStep/2, y * currentStep + currentStep/2);
+                                p.pop();
                             }
                         }
-                        p.pop();
                     }
-                }
 
                 // --- 6. 十字座標ガイド ---
                 if (showGuide) {
