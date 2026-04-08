@@ -516,20 +516,25 @@
         };
 
             p.cropReset = () => {
-                // 1. データを元に戻す
-                rawImg = sourceImg ? sourceImg.get() : null;
+                // 1. オリジナルのバックアップを現在の作業用(rawImg)に書き戻す
+                if (!sourceImg) return;
+                rawImg = sourceImg.get(); 
                 
-                // 2. 重要：戻したデータでドット絵を再計算する 🌟
+                // 2. windowオブジェクト側の参照も更新（もしapp.jsなどでwindow.rawImgを使っている場合）
+                window.rawImg = rawImg;
+
+                // 3. ドット絵再計算
                 if (typeof pxUpdate === 'function') {
-                    pxUpdate();
+                    pxUpdate(); 
                 }
 
-                // UIの表示設定
                 hideCropRect();
                 document.getElementById('px-crop-confirm').style.display = 'none';
                 document.getElementById('px-crop-reset').style.display = 'none';
                 
-                // 3. 再描画
+                // 4. 切り抜きボタンを再表示
+                document.getElementById('px-crop-btn').style.display = 'inline-block';
+                
                 p.redraw();
             };
 
