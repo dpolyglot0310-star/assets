@@ -144,87 +144,100 @@
 
             // コントロールのイベント
             p.draw = () => {
-                p.clear(); // 🌟 これで背景が透明になります
+                p.clear(); // 背景を透明に
                 
                 const target = window.virtualCanvas || virtualCanvas;
                 if (!target) return;
 
-                // --- 1. 基本設定の取得 ---
+                // --- 1. 計算用の定数 ---
                 const zoom = parseFloat(document.getElementById('px-zoom').value) || 1;
-                const currentGridSize = (window.gridSize || 10) * zoom; // 🌟 Zoomを考慮した1ドットの描画サイズ
+                const baseGrid = window.gridSize || 10;
+                const currentStep = baseGrid * zoom; // 🌟 画面上の1ドットの大きさ
                 const showGuide = document.getElementById('px-show-guide').checked;
-                const bgColor = document.getElementById('px-bg').value; // 縁取り用
-                
-                // 基準点（中心や0,0など、必要に応じて調整してください）
-                const originCol = 0; 
-                const originRow = 0;
+                const bgColor = document.getElementById('px-bg').value;
 
-                // --- 2. ドット絵本体の描画 ---
+                // --- 2. ドット絵本体 ---
                 p.noSmooth();
-                p.image(target, 0, 0, target.width * currentGridSize, target.height * currentGridSize);
+                p.image(target, 0, 0, target.width * currentStep, target.height * currentStep);
 
-                // --- 3. グリッド線の描画 ---
+                // --- 3. グリッド線 ---
                 if (document.getElementById('px-gridline').checked) {
                     p.stroke(document.getElementById('px-gridline-color').value);
                     p.strokeWeight(parseInt(document.getElementById('px-gridline-w').value));
                     for (let x = 0; x <= target.width; x++) {
-                        p.line(x * currentGridSize, 0, x * currentGridSize, target.height * currentGridSize);
+                        p.line(x * currentStep, 0, x * currentStep, target.height * currentStep);
                     }
                     for (let y = 0; y <= target.height; y++) {
-                        p.line(0, y * currentGridSize, target.width * currentGridSize, y * currentGridSize);
+                        p.line(0, y * currentStep, target.width * currentStep, y * currentStep);
                     }
                 }
 
-                // --- 4. 座標ガイド（番号）の描画 ---
-                if (showGuide) {
+                // --- 4. 十字座標ガイド ---
+                if (showGuide && typeof guideOrigin !== 'undefined') {
                     p.push();
-                    const accentColor = p.color(255, 255, 0); // 10刻み
-                    const subColor    = p.color(255, 255, 255); // 通常
-                    const edgeColor   = p.color(bgColor);       // 縁取り
                     p.textAlign(p.CENTER, p.CENTER);
+                    p.noStroke(); // 🌟 文字に余計な線がつかないように
+                    
+                    const accentColor = p.color(255, 255, 0); 
+                    const subColor    = p.color(255, 255, 255); 
+                    const edgeColor   = p.color(bgColor);
 
-                    const drawGuideText = (val, x, y, isAccent) => {
+                    const drawText = (val, dx, dy, isAccent) => {
                         const txt = (val === 0) ? "0" : (val % 10 === 0 ? val : val % 10);
-                        // 🌟 Zoomに合わせて文字サイズも調整
-                        const size = isAccent ? Math.max(10, currentGridSize * 0.5) : Math.max(8, currentGridSize * 0.35);
+                        const size = isAccent ? Math.max(10, currentStep * 0.5) : Math.max(8, currentStep * 0.35);
                         p.textSize(size);
-
-                        // 縁取り
+                        
                         p.fill(edgeColor);
-                        for(let offX = -1; offX <= 1; offX++) {
-                            for(let offY = -1; offY <= 1; offY++) {
-                                if(offX === 0 && offY === 0) continue;
-                                p.text(txt, x + offX, y + offY);
+                        // 縁取り（上下左右に1pxずらして描画）
+                        for(let ox=-1; ox<=1; ox++) {
+                            for(let oy=-1; oy<=1; oy++) {
+                                if(ox!==0 || oy!==0) p.text(txt, dx+ox, dy+oy);
                             }
                         }
-                        // メイン
+                        
                         p.fill(isAccent ? accentColor : subColor);
-                        p.text(txt, x, y);
+                        p.text(txt, dx, dy);
                     };
 
-                    // X軸
+                    // 🌟 計算をループの外に出して高速化
+                    const originYPos = guideOrigin.y * currentStep + currentStep/2;
+                    const originXPos = guideOrigin.x * currentStep + currentStep/2;
+
+                    // X軸ガイド
                     for (let x = 0; x < target.width; x++) {
-                        let diff = Math.abs(x - originCol);
-                        drawGuideText(
-                            diff, 
-                            x * currentGridSize + currentGridSize/2, 
-                            originRow * currentGridSize + currentGridSize/2, 
-                            diff % 10 === 0
-                        );
+                        let diff = Math.abs(x - guideOrigin.x);
+                        drawText(diff, x * currentStep + currentStep/2, originYPos, diff % 10 === 0);
                     }
-                    // Y軸
+                    // Y軸ガイド
                     for (let y = 0; y < target.height; y++) {
-                        let diff = Math.abs(y - originRow);
+                        let diff = Math.abs(y - guideOrigin.y);
                         if (diff === 0) continue;
-                        drawGuideText(
-                            diff, 
-                            originCol * currentGridSize + currentGridSize/2, 
-                            y * currentGridSize + currentGridSize/2, 
-                            diff % 10 === 0
-                        );
+                        drawText(diff, originXPos, y * currentStep + currentStep/2, diff % 10 === 0);
                     }
                     p.pop();
                 }
+            };
+
+            p.applyPaint = (x, y, hex) => {
+                if (!window.virtualCanvas) return;
+                
+                window.virtualCanvas.loadPixels();
+                const idx = (x + y * window.virtualCanvas.width) * 4;
+                
+                const r = parseInt(hex.slice(1, 3), 16);
+                const g = parseInt(hex.slice(3, 5), 16);
+                const b = parseInt(hex.slice(5, 7), 16);
+
+                window.virtualCanvas.pixels[idx] = r;
+                window.virtualCanvas.pixels[idx+1] = g;
+                window.virtualCanvas.pixels[idx+2] = b;
+                window.virtualCanvas.pixels[idx+3] = 255;
+                
+                window.virtualCanvas.updatePixels();
+                
+                // 🌟 塗った色をパレットに反映させるために updatePalette を呼ぶ
+                if (typeof updatePalette === 'function') updatePalette();
+                p.redraw();
             };
 
             // ガイド表示用の関数（同階層に追加）
@@ -243,14 +256,82 @@
                 p.save(virtualCanvas, "pixel_art_export.png");
             }
 
+            let guideOrigin = { x: 0, y: 0 };
+            let paintMode = null; // 'cell', 'rect' など
+
+            // p5.js内のクリックイベントを拡張
             p.mousePressed = () => {
-                // 画面上のクリック座標をドット座標に変換
+                // Canvas内かチェック
+                if (p.mouseX < 0 || p.mouseX > p.width || p.mouseY < 0 || p.mouseY > p.height) return;
+
                 const zoom = parseFloat(document.getElementById('px-zoom').value) || 1;
-                const dotX = Math.floor(p.mouseX / (window.gridSize * zoom));
-                const dotY = Math.floor(p.mouseY / (window.gridSize * zoom));
+                const currentStep = (window.gridSize || 10) * zoom;
                 
-                // virtualCanvas の (tx, ty) の色を塗り替える... 
+                // クリックしたドット座標
+                const dotX = Math.floor(p.mouseX / currentStep);
+                const dotY = Math.floor(p.mouseY / currentStep);
+
+                if (window.currentPaintMode === 'cell') {
+                    const paintColor = document.getElementById('px-paint-color').value;
+                    p.applyPaint(dotX, dotY, paintColor);
+                } else {
+                    // 通常時はガイドの移動
+                    if (typeof guideOrigin !== 'undefined') {
+                        guideOrigin.x = dotX;
+                        guideOrigin.y = dotY;
+                        p.redraw();
+                    }
+                }
             };
+
+            // p5.jsのインスタンス内に追加
+            p.applyRectPaint = (rx, ry, rw, rh, hex) => {
+                if (!window.virtualCanvas) return;
+                window.virtualCanvas.loadPixels();
+                
+                const r = parseInt(hex.slice(1, 3), 16);
+                const g = parseInt(hex.slice(3, 5), 16);
+                const b = parseInt(hex.slice(5, 7), 16);
+
+                for (let y = ry; y < ry + rh; y++) {
+                    for (let x = rx; x < rx + rw; x++) {
+                        if (x >= 0 && x < window.virtualCanvas.width && y >= 0 && y < window.virtualCanvas.height) {
+                            const idx = (x + y * window.virtualCanvas.width) * 4;
+                            window.virtualCanvas.pixels[idx] = r;
+                            window.virtualCanvas.pixels[idx+1] = g;
+                            window.virtualCanvas.pixels[idx+2] = b;
+                            window.virtualCanvas.pixels[idx+3] = 255;
+                        }
+                    }
+                }
+                window.virtualCanvas.updatePixels();
+                if (typeof updatePalette === 'function') updatePalette();
+                p.redraw();
+            };
+
+            p.stopPaint = () => {
+                window.currentPaintMode = null;
+                p.redraw();
+            };
+
+            // 特定の1ドットを塗り替える関数
+            function applySinglePixelPaint(x, y, hexColor) {
+                if (!virtualCanvas) return;
+                virtualCanvas.loadPixels();
+                const idx = (x + y * virtualCanvas.width) * 4;
+                
+                const r = parseInt(hexColor.slice(1, 3), 16);
+                const g = parseInt(hexColor.slice(3, 5), 16);
+                const b = parseInt(hexColor.slice(5, 7), 16);
+
+                virtualCanvas.pixels[idx] = r;
+                virtualCanvas.pixels[idx+1] = g;
+                virtualCanvas.pixels[idx+2] = b;
+                virtualCanvas.pixels[idx+3] = 255;
+                
+                virtualCanvas.updatePixels();
+                p.redraw();
+            }
 
             function sp(buf,x,y,cols,rows,er,eg,eb,w){
                 if(x<0||x>=cols||y>=rows)return;
@@ -403,20 +484,34 @@
             p.cropConfirm = () => {
                 const cv = p.canvas;
                 const cr = document.getElementById('crop-rect');
-                const scaleX = sourceImg.width / cv.offsetWidth;
-                const scaleY = sourceImg.height / cv.offsetHeight;
-                const rx = Math.round((parseInt(cr.style.left)||0) * scaleX);
-                const ry = Math.round((parseInt(cr.style.top) ||0) * scaleY);
-                const rw = Math.round((parseInt(cr.style.width) ||100) * scaleX);
-                const rh = Math.round((parseInt(cr.style.height)||100) * scaleY);
-                if (rw<2||rh<2) return;
-                p.pushHistory();
-                rawImg = sourceImg.get(rx, ry, rw, rh);
+                if (!cr || !window.rawImg) return;
+
+                // 🌟 現在の表示サイズ（Canvas）と実画像（rawImg）の比率を出す
+                const scaleX = window.rawImg.width / cv.offsetWidth;
+                const scaleY = window.rawImg.height / cv.offsetHeight;
+
+                const rx = Math.round((parseInt(cr.style.left) || 0) * scaleX);
+                const ry = Math.round((parseInt(cr.style.top)  || 0) * scaleY);
+                const rw = Math.round((parseInt(cr.style.width)  || 100) * scaleX);
+                const rh = Math.round((parseInt(cr.style.height) || 100) * scaleY);
+
+                if (rw < 2 || rh < 2) return;
+
+                // 履歴に保存
+                if (typeof p.pushHistory === 'function') p.pushHistory();
+
+                // 🌟 rawImg 自体を切り抜いた画像で上書きする
+                window.rawImg = window.rawImg.get(rx, ry, rw, rh);
+
+                // 🌟 UIを片付けて、メインエンジン(pxUpdate)を回す
                 hideCropRect();
-                document.getElementById('px-crop-confirm').style.display='none';
-                document.getElementById('px-crop-reset').style.display='inline-block';
-                p.redraw();
+                document.getElementById('px-crop-confirm').style.display = 'none';
+                document.getElementById('px-crop-reset').style.display = 'inline-block';
+
+                // これでドット絵が再計算される
+                if (typeof pxUpdate === 'function') pxUpdate();
             };
+
             p.cropReset = () => {
                 rawImg = sourceImg ? sourceImg.get() : null;
                 hideCropRect();
@@ -966,27 +1061,38 @@
     }
 
     function startPaintMode(mode) {
-        if (!pixelApp) return;
-        // 色変更前に減色・MaxColorsをオフ
-        const uq=document.getElementById('px-quant');
-        const umc=document.getElementById('px-maxcol-on');
-        if (uq.checked||umc.checked) { uq.checked=false; umc.checked=false; pxUpdate(); }
-        document.getElementById('px-cell-btn').style.background = mode==='cell' ? '#7b2fff' : '#555';
-        document.getElementById('px-rect-btn').style.background = mode==='rect' ? '#7b2fff' : '#555';
-        document.getElementById('px-paint-confirm').style.display = mode==='rect' ? 'inline-block' : 'none';
-        if (mode==='rect') showCropRect();
-        else hideCropRect();
-        pixelApp.startPaint(mode);
+        window.currentPaintMode = mode;
+        document.getElementById('px-paint-confirm').style.display = 'inline-block';
+        // ガイド（十字）を一時的に消すと塗りやすいかもしれません
     }
 
+    // JS側の confirmPaint を修正
     function confirmPaint() {
         if (!pixelApp) return;
         const color = document.getElementById('px-paint-color').value;
-        pixelApp.confirmPaint(color);
+
+        if (window.currentPaintMode === 'rect') {
+            // 矩形選択モードなら、crop-rectの範囲を塗る
+            const cr = document.getElementById('crop-rect');
+            const cv = pixelApp.canvas;
+            
+            // Canvas上の座標をドット座標に変換
+            const zoom = parseFloat(document.getElementById('px-zoom').value) || 1;
+            const currentStep = (window.gridSize || 10) * zoom;
+
+            const rx = Math.floor(parseInt(cr.style.left) / currentStep);
+            const ry = Math.floor(parseInt(cr.style.top) / currentStep);
+            const rw = Math.floor(parseInt(cr.style.width) / currentStep);
+            const rh = Math.floor(parseInt(cr.style.height) / currentStep);
+
+            pixelApp.applyRectPaint(rx, ry, rw, rh, color);
+        } else {
+            // セル選択モードはクリック時に随時塗られているはず
+        }
+
         hideCropRect();
-        document.getElementById('px-paint-confirm').style.display='none';
-        document.getElementById('px-cell-btn').style.background='#555';
-        document.getElementById('px-rect-btn').style.background='#555';
+        document.getElementById('px-paint-confirm').style.display = 'none';
+        window.currentPaintMode = null;
     }
 
     function stopPaintMode() {
