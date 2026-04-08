@@ -156,7 +156,7 @@
                 // --- 1. 計算用の定数 ---
                 const zoom = parseFloat(document.getElementById('px-zoom').value) || 1;
                 const baseGrid = window.gridSize || 10;
-                const currentStep = baseGrid * zoom; // 🌟 画面上の1ドットの大きさ
+                const currentStep = baseGrid * zoom;
                 const showGuide = document.getElementById('px-show-guide').checked;
                 const bgColor = document.getElementById('px-bg').value;
 
@@ -164,48 +164,47 @@
                 p.noSmooth();
                 p.image(target, 0, 0, target.width * currentStep, target.height * currentStep);
 
-                // --- 2.5 ハイライト & ドット上に番号表示 ---
+                // --- 3. ハイライト & ドット上に番号表示 ---
                 if (typeof selectedHex !== 'undefined' && selectedHex) {
                     p.push();
                     target.loadPixels();
                     
-                    // 🌟 選択中の色のマスター番号(loc)を事前に特定しておく
+                    // 【A】 選択中の色のマスター番号(loc)を特定（近似色対応）
                     let currentLoc = "";
-                    const targetRgb = hexToRgbStr(selectedHex).replace(/\s+/g, '');
+                    const selColor = p.color(selectedHex);
+                    const sr = p.red(selColor), sg = p.green(selColor), sb = p.blue(selColor);
+                    
                     const masterItems = document.querySelectorAll(`#px-preset-table input[data-rgb]`);
+                    let minD = 15; 
                     for (const item of masterItems) {
-                        if (item.dataset.rgb.replace(/\s+/g, '') === targetRgb) {
-                            currentLoc = item.dataset.location || "";
-                            break;
-                        }
+                        const mRgb = item.dataset.rgb.split(',').map(Number);
+                        const d = Math.abs(mRgb[0]-sr) + Math.abs(mRgb[1]-sg) + Math.abs(mRgb[2]-sb);
+                        if (d < minD) { minD = d; currentLoc = item.dataset.location || ""; }
                     }
+
+                    p.textAlign(p.CENTER, p.CENTER);
 
                     for (let y = 0; y < target.height; y++) {
                         for (let x = 0; x < target.width; x++) {
                             const col = target.get(x, y);
                             if (p.alpha(col) < 10) continue;
 
+                            // 現在のドットのHexを取得
                             const hex = "#" + ((1 << 24) + (p.red(col) << 16) + (p.green(col) << 8) + p.blue(col)).toString(16).slice(1);
                             
                             if (hex !== selectedHex) {
-                                // 選択色以外を暗く
+                                // 選択色以外を暗く（以前のサンプルの挙動）
                                 p.fill(0, 0, 0, 160);
                                 p.noStroke();
                                 p.rect(x * currentStep, y * currentStep, currentStep, currentStep);
                             } else {
-                                // 🌟 選択色のドットの上に番号を描画
-                                // 下地を少し明るく（必要なら）
-                                p.fill(255, 255, 0, 100); 
-                                p.rect(x * currentStep, y * currentStep, currentStep, currentStep);
-
-                                // 番号テキスト
-                                if (currentLoc) {
-                                    p.fill(255); // 文字色：白
-                                    p.stroke(0); // 文字の縁取り：黒
-                                    p.strokeWeight(2);
-                                    p.textAlign(p.CENTER, p.CENTER);
-                                    // ズーム倍率に合わせて文字サイズ調整
-                                    p.textSize(Math.constrain(currentStep * 0.6, 6, 14)); 
+                                // 🌟 選択色のドットの上に番号を表示（以前のサンプルのロジックを統合）
+                                if (currentLoc && currentStep > 8) {
+                                    // 輝度判定で文字色を白か黒に反転
+                                    const luminance = 0.299 * p.red(col) + 0.587 * p.green(col) + 0.114 * p.blue(col);
+                                    p.fill(luminance > 128 ? 0 : 255);
+                                    p.noStroke();
+                                    p.textSize(Math.constrain(currentStep * 0.6, 6, 14));
                                     p.text(currentLoc, x * currentStep + currentStep/2, y * currentStep + currentStep/2);
                                 }
                             }
@@ -214,7 +213,7 @@
                     p.pop();
                 }
 
-                // --- 3. グリッド線 ---
+                // --- 4. グリッド線 ---
                 if (document.getElementById('px-gridline').checked) {
                     p.stroke(document.getElementById('px-gridline-color').value);
                     p.strokeWeight(parseInt(document.getElementById('px-gridline-w').value));
@@ -226,47 +225,42 @@
                     }
                 }
 
-                // --- 4. 十字座標ガイド ---
+                // --- 5. 十字座標ガイド (高速化版) ---
                 if (showGuide && typeof guideOrigin !== 'undefined') {
                     p.push();
                     p.textAlign(p.CENTER, p.CENTER);
-                    p.noStroke(); // 🌟 文字に余計な線がつかないように
+                    p.noStroke();
                     
                     const accentColor = p.color(255, 255, 0); 
                     const subColor    = p.color(255, 255, 255); 
                     const edgeColor   = p.color(bgColor);
 
-                    const drawText = (val, dx, dy, isAccent) => {
+                    const drawGuideText = (val, dx, dy, isAccent) => {
                         const txt = (val === 0) ? "0" : (val % 10 === 0 ? val : val % 10);
                         const size = isAccent ? Math.max(10, currentStep * 0.5) : Math.max(8, currentStep * 0.35);
                         p.textSize(size);
                         
                         p.fill(edgeColor);
-                        // 縁取り（上下左右に1pxずらして描画）
                         for(let ox=-1; ox<=1; ox++) {
                             for(let oy=-1; oy<=1; oy++) {
                                 if(ox!==0 || oy!==0) p.text(txt, dx+ox, dy+oy);
                             }
                         }
-                        
                         p.fill(isAccent ? accentColor : subColor);
                         p.text(txt, dx, dy);
                     };
 
-                    // 🌟 計算をループの外に出して高速化
                     const originYPos = guideOrigin.y * currentStep + currentStep/2;
                     const originXPos = guideOrigin.x * currentStep + currentStep/2;
 
-                    // X軸ガイド
                     for (let x = 0; x < target.width; x++) {
                         let diff = Math.abs(x - guideOrigin.x);
-                        drawText(diff, x * currentStep + currentStep/2, originYPos, diff % 10 === 0);
+                        drawGuideText(diff, x * currentStep + currentStep/2, originYPos, diff % 10 === 0);
                     }
-                    // Y軸ガイド
                     for (let y = 0; y < target.height; y++) {
                         let diff = Math.abs(y - guideOrigin.y);
                         if (diff === 0) continue;
-                        drawText(diff, originXPos, y * currentStep + currentStep/2, diff % 10 === 0);
+                        drawGuideText(diff, originXPos, y * currentStep + currentStep/2, diff % 10 === 0);
                     }
                     p.pop();
                 }
@@ -629,14 +623,15 @@
             };
             // --- ハイライト機能 ---
             p.highlight = (hv) => {
-                // 同じ色を叩いたら解除、違う色なら選択
+                // 選択状態をトグル
                 selectedHex = (selectedHex === hv ? null : hv);
                 
-                // 🌟 パレット表示を更新して、どのチップが active かを同期
+                // パレットUI側の active クラスを同期
                 if (typeof renderPxPalette === 'function') {
                     const palette = getHexPaletteFromCanvas(window.virtualCanvas);
                     renderPxPalette(palette, selectedHex, window.swapMap || {});
                 }
+                
                 p.redraw();
             };
 
