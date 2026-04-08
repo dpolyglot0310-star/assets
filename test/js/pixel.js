@@ -147,117 +147,79 @@
             };
 
             // コントロールのイベント
-
             p.draw = () => {
-                p.clear();
-                    
-                    // 1. ターゲット（計算・描画の元）を正しく取得
-                    // virtualCanvas がある場合はそれを優先、なければ rawImg
-                    const target = window.virtualCanvas || rawImg;
-                    if (!target) return;
+                p.clear(); // 背景を透明に
+                
+                const target = window.virtualCanvas || virtualCanvas;
+                if (!target) return;
 
-                    // 表示倍率（ズーム等がある場合）
-                    const zoom = (typeof pxZoom !== 'undefined') ? parseFloat(pxZoom.value) : 1;
-                    const currentStep = gridSize * zoom;
+                // --- 1. 計算用の定数 ---
+                const zoom = parseFloat(document.getElementById('px-zoom').value) || 1;
+                const baseGrid = window.gridSize || 10;
+                const currentStep = baseGrid * zoom; // 🌟 画面上の1ドットの大きさ
+                const showGuide = document.getElementById('px-show-guide').checked;
+                const bgColor = document.getElementById('px-bg').value;
 
-                    // 2. キャンバスサイズの同期（ズレ防止）
-                    const drawW = target.width * currentStep;
-                    const drawH = target.height * currentStep;
-                    if (p.width !== drawW || p.height !== drawH) {
-                        p.resizeCanvas(drawW, drawH);
-                        return; 
+                // --- 2. ドット絵本体 ---
+                p.noSmooth();
+                p.image(target, 0, 0, target.width * currentStep, target.height * currentStep);
+
+                // --- 3. グリッド線 ---
+                if (document.getElementById('px-gridline').checked) {
+                    p.stroke(document.getElementById('px-gridline-color').value);
+                    p.strokeWeight(parseInt(document.getElementById('px-gridline-w').value));
+                    for (let x = 0; x <= target.width; x++) {
+                        p.line(x * currentStep, 0, x * currentStep, target.height * currentStep);
                     }
+                    for (let y = 0; y <= target.height; y++) {
+                        p.line(0, y * currentStep, target.width * currentStep, y * currentStep);
+                    }
+                }
 
-                    // マスターパレットの情報を事前取得（ループ外でやるのが鉄則）
-                    const masterNodes = document.querySelectorAll(`#px-preset-table input[data-rgb]`);
-                    const masterPalettes = Array.from(masterNodes).map(input => ({
-                        rgb: input.dataset.rgb.split(',').map(Number),
-                        loc: input.dataset.location
-                    }));
+                // --- 4. 十字座標ガイド ---
+                if (showGuide && typeof guideOrigin !== 'undefined') {
+                    p.push();
+                    p.textAlign(p.CENTER, p.CENTER);
+                    p.noStroke(); // 🌟 文字に余計な線がつかないように
+                    
+                    const accentColor = p.color(255, 255, 0); 
+                    const subColor    = p.color(255, 255, 255); 
+                    const edgeColor   = p.color(bgColor);
 
-                    target.loadPixels();
-
-                    // 3. メインループ（ターゲットのピクセルを1つずつ精査）
-                    for (let y = 0; y < target.height; y++) {
-                        for (let x = 0; x < target.width; x++) {
-                            const i = (y * target.width + x) * 4;
-                            const r = target.pixels[i];
-                            const g = target.pixels[i+1];
-                            const b = target.pixels[i+2];
-                            const a = target.pixels[i+3];
-
-                            if (a < 10) continue; // 透明ドットは無視
-
-                            let finalR = r, finalG = g, finalB = b;
-                            let currentLoc = "";
-
-                            // --- 【重要】マスタープリセットモードの強制絞り込み ---
-                            if (!rawMode && quantMethod === 'preset') {
-                                let minD = Infinity;
-                                // ここで「ターゲットの色」を「マスターの色」へすり替える
-                                for (const m of masterPalettes) {
-                                    const d = Math.pow(r - m.rgb[0], 2) + Math.pow(g - m.rgb[1], 2) + Math.pow(b - m.rgb[2], 2);
-                                    if (d < minD) {
-                                        minD = d;
-                                        finalR = m.rgb[0];
-                                        finalG = m.rgb[1];
-                                        finalB = m.rgb[2];
-                                        currentLoc = m.loc;
-                                    }
-                                }
-                            }
-
-                            const hex = toHexStr(finalR, finalG, finalB);
-
-                            // 4. 描画
-                            p.noStroke();
-                            if (selectedHex && hex !== selectedHex) {
-                                p.fill(finalR * 0.2, finalG * 0.2, finalB * 0.2, a); // 非選択は暗く
-                            } else {
-                                p.fill(finalR, finalG, finalB, a); // マスター（確定）色で塗る
-                            }
-                            
-                            p.rect(x * currentStep, y * currentStep, currentStep, currentStep);
-
-                            // 5. 番号表示 (マスターモードかつ選択時のみ)
-                            if (quantMethod === 'preset' && selectedHex === hex && currentLoc && currentStep > 8) {
-                                p.push();
-                                p.textAlign(p.CENTER, p.CENTER);
-                                const lumValue = 0.299 * finalR + 0.587 * finalG + 0.114 * finalB;
-                                p.fill(lumValue > 128 ? 0 : 255);
-                                p.textSize(currentStep * 0.5);
-                                p.text(currentLoc, x * currentStep + currentStep/2, y * currentStep + currentStep/2);
-                                p.pop();
+                    const drawText = (val, dx, dy, isAccent) => {
+                        const txt = (val === 0) ? "0" : (val % 10 === 0 ? val : val % 10);
+                        const size = isAccent ? Math.max(10, currentStep * 0.5) : Math.max(8, currentStep * 0.35);
+                        p.textSize(size);
+                        
+                        p.fill(edgeColor);
+                        // 縁取り（上下左右に1pxずらして描画）
+                        for(let ox=-1; ox<=1; ox++) {
+                            for(let oy=-1; oy<=1; oy++) {
+                                if(ox!==0 || oy!==0) p.text(txt, dx+ox, dy+oy);
                             }
                         }
-                    }
-
-                // --- 6. 十字座標ガイド ---
-                if (showGuide) {
-                    p.push();
-                    const accentColor = p.color(255, 255, 0), subColor = p.color(255, 255, 255), edgeColor = p.color(bgColor);
-                    p.textAlign(p.CENTER, p.CENTER);
-                    const drawGuideText = (val, gx, gy, isAccent) => {
-                        const txt = (val === 0) ? "0" : (val % 10 === 0 ? val : val % 10);
-                        const size = isAccent ? Math.max(10, gridSize * 0.5) : Math.max(8, gridSize * 0.35);
-                        p.textSize(size);
-                        p.fill(edgeColor);
-                        for(let ox = -1; ox <= 1; ox++) for(let oy = -1; oy <= 1; oy++) if(ox || oy) p.text(txt, gx + ox, gy + oy);
+                        
                         p.fill(isAccent ? accentColor : subColor);
-                        p.text(txt, gx, gy);
+                        p.text(txt, dx, dy);
                     };
-                    for (let x = 0; x < cols; x++) {
-                        let d = Math.abs(x - originCol);
-                        drawGuideText(d, x * gridSize + gridSize / 2, originRow * gridSize + gridSize / 2, d % 10 === 0);
+
+                    // 🌟 計算をループの外に出して高速化
+                    const originYPos = guideOrigin.y * currentStep + currentStep/2;
+                    const originXPos = guideOrigin.x * currentStep + currentStep/2;
+
+                    // X軸ガイド
+                    for (let x = 0; x < target.width; x++) {
+                        let diff = Math.abs(x - guideOrigin.x);
+                        drawText(diff, x * currentStep + currentStep/2, originYPos, diff % 10 === 0);
                     }
-                    for (let y = 0; y < rows; y++) {
-                        let d = Math.abs(y - originRow);
-                        if (d !== 0) drawGuideText(d, originCol * gridSize + gridSize / 2, y * gridSize + gridSize / 2, d % 10 === 0);
+                    // Y軸ガイド
+                    for (let y = 0; y < target.height; y++) {
+                        let diff = Math.abs(y - guideOrigin.y);
+                        if (diff === 0) continue;
+                        drawText(diff, originXPos, y * currentStep + currentStep/2, diff % 10 === 0);
                     }
                     p.pop();
                 }
-
-                renderPxPalette(finalSorted, selectedHex, swapMap);
             };
 
             p.applyPaint = (x, y, hex) => {
@@ -303,35 +265,29 @@
 
             // p5.js内のクリックイベントを拡張
             p.mousePressed = () => {
-                // 1. キャンバス外のクリックは無視
+                // Canvas内かチェック
                 if (p.mouseX < 0 || p.mouseX > p.width || p.mouseY < 0 || p.mouseY > p.height) return;
 
-                if (window.virtualCanvas) {
-                    // 2. 表示倍率から正確なドット座標を計算
-                    const x = Math.floor(p.mouseX / (p.width / window.virtualCanvas.width));
-                    const y = Math.floor(p.mouseY / (p.height / window.virtualCanvas.height));
+                const zoom = parseFloat(document.getElementById('px-zoom').value) || 1;
+                const currentStep = (window.gridSize || 10) * zoom;
+                
+                // クリックしたドット座標
+                const dotX = Math.floor(p.mouseX / currentStep);
+                const dotY = Math.floor(p.mouseY / currentStep);
 
-                    const col = window.virtualCanvas.get(x, y);
-                    if (p.alpha(col) < 10) return; // 透明箇所は無視
-
-                    // 3. HEXカラーに変換
-                    const hex = "#" + ((1 << 24) + (p.red(col) << 16) + (p.green(col) << 8) + p.blue(col)).toString(16).slice(1);
-
-                    // 4. ハイライトの実行（トグル動作）
-                    // 🌟 外部から呼べるように p.highlight を介して実行するのが確実です
-                    if (typeof p.highlight === 'function') {
-                        p.highlight(hex);
-                    } else {
-                        // もし p.highlight をまだ定義していない場合は直接処理
-                        selectedHex = (selectedHex === hex ? null : hex);
-                        if (typeof renderPxPalette === 'function') {
-                            const palette = getHexPaletteFromCanvas(window.virtualCanvas);
-                            renderPxPalette(palette, selectedHex, window.swapMap || {});
-                        }
+                if (window.currentPaintMode === 'cell') {
+                    const paintColor = document.getElementById('px-paint-color').value;
+                    p.applyPaint(dotX, dotY, paintColor);
+                } else {
+                    // 通常時はガイドの移動
+                    if (typeof guideOrigin !== 'undefined') {
+                        guideOrigin.x = dotX;
+                        guideOrigin.y = dotY;
                         p.redraw();
                     }
                 }
             };
+
             // p5.jsのインスタンス内に追加
             p.applyRectPaint = (rx, ry, rw, rh, hex) => {
                 if (!window.virtualCanvas) return;
@@ -615,54 +571,19 @@
                 if (!history.length) document.getElementById('px-undo').disabled = true;
                 p.redraw();
             };
-            // --- ハイライト機能 ---
-            p.highlight = (hv) => {
-                // 選択状態をトグル
-                selectedHex = (selectedHex === hv ? null : hv);
-                
-                // パレットUI側の active クラスを同期
-                if (typeof renderPxPalette === 'function') {
-                    const palette = getHexPaletteFromCanvas(window.virtualCanvas);
-                    renderPxPalette(palette, selectedHex, window.swapMap || {});
+            p.highlight = hv => { selectedHex=(selectedHex===hv?null:hv); p.redraw(); };
+            p.swap = (from,to) => {
+                // 色変更時は減色・MaxColorsを自動オフにして正確な色で操作
+                if (useQuant || useMaxColors) {
+                    useQuant=false; useMaxColors=false;
+                    document.getElementById('px-quant').checked=false;
+                    document.getElementById('px-maxcol-on').checked=false;
+                    pxUpdate();
                 }
-                
+                if(from===to) delete swapMap[from]; else swapMap[from]=to;
                 p.redraw();
             };
-
-            // --- 色置換機能 ---
-            p.swap = (from, to) => {
-                // 🌟 色変更時は正確な色操作のために減色設定を自動オフにするロジック
-                if (window.useQuant || window.useMaxColors) {
-                    window.useQuant = false;
-                    window.useMaxColors = false;
-                    const qCb = document.getElementById('px-quant');
-                    const mCb = document.getElementById('px-maxcol-on');
-                    if (qCb) qCb.checked = false;
-                    if (mCb) mCb.checked = false;
-                    
-                    // 内部変数も更新して再計算
-                    if (typeof window.pxUpdate === 'function') window.pxUpdate();
-                }
-
-                // swapMap の更新
-                if (!window.swapMap) window.swapMap = {};
-                if (from === to) {
-                    delete window.swapMap[from];
-                } else {
-                    window.swapMap[from] = to;
-                }
-                
-                // 🌟 置換を反映させるために再計算と再描画
-                if (typeof window.pxUpdate === 'function') window.pxUpdate();
-                p.redraw();
-            };
-
-            // --- 置換リセット ---
-            p.resetSwap = (hv) => {
-                if (window.swapMap) delete window.swapMap[hv];
-                if (typeof window.pxUpdate === 'function') window.pxUpdate();
-                p.redraw();
-            };
+            p.resetSwap = hv => { delete swapMap[hv]; p.redraw(); };
             p.getSwapMap  = () => swapMap;
             p.getSourceImg= () => sourceImg;
             p.startPaint = (mode) => {
@@ -964,7 +885,20 @@
         
     }
 
-
+        function getHexPaletteFromCanvas(vcv) {
+            if (!vcv) return [];
+            const colors = new Set();
+            vcv.loadPixels();
+            for (let i = 0; i < vcv.pixels.length; i += 4) {
+                if (vcv.pixels[i+3] < 10) continue; // 透明
+                const r = vcv.pixels[i];
+                const g = vcv.pixels[i+1];
+                const b = vcv.pixels[i+2];
+                const hex = "#" + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
+                colors.add(hex);
+            }
+            return Array.from(colors);
+        }
 
         function exportToSpreadsheet() {
             if (!virtualCanvas) return;
@@ -1250,40 +1184,33 @@
         const div = document.getElementById('px-palette');
         if (!div) return;
 
-        // 1. 使用色数の表示
+        // 1. 使用色数の表示を復活
         div.innerHTML = `<div style="grid-column:1/-1;font-size:11px;color:#aaa;margin-bottom:4px;">使用色数: <b style="color:#00ffcc;">${palette.length}</b></div>`;
 
         palette.forEach((hv, i) => {
             const sw = swapMap[hv], disp = sw || hv;
             
-            // --- マスターパレットから場所(loc)を取得 ---
-            // --- 安全に番号(location)を取得する (修正版) ---
+            // --- 安全に番号(location)を取得する ---
             let loc = "";
             try {
-                const targetRgb = hexToRgbStr(disp).replace(/\s+/g, ''); // 空白を除去して正規化
-                // ID: px-preset-table 内の全入力を取得してループで探す
-                const masterItems = document.querySelectorAll(`#px-preset-table input[data-rgb]`);
-                for (const item of masterItems) {
-                    if (item.dataset.rgb.replace(/\s+/g, '') === targetRgb) {
-                        loc = item.dataset.location || "";
-                        break;
-                    }
-                }
-            } catch (e) {
-                console.error("番号取得エラー:", e);
+                // マスターパレットのUIから直接探す（失敗しても無視して次へ進む）
+                const targetRgb = hexToRgbStr(disp); // 下の補助関数を使用
+                const masterItem = document.querySelector(`#px-preset-table input[data-rgb="${targetRgb}"]`);
+                if (masterItem) loc = masterItem.dataset.location || "";
+            } catch (e) { 
+                // 番号取得でエラーが起きても、パレット表示自体は止めない
             }
 
             const chip = document.createElement('div');
             chip.className = 'px-chip' + (selectedHex === hv ? ' active' : '');
             chip.style.position = 'relative';
 
-            // 2. チェックボックス（一括処理用）
             const cb = document.createElement('input');
             cb.type = 'checkbox';
-            cb.checked = (window.pxSelected && pxSelected.has(hv));
+            cb.checked = pxSelected.has(hv);
             cb.onchange = () => {
                 if (cb.checked) pxSelected.add(hv); else pxSelected.delete(hv);
-                if (typeof updateBulkBar === 'function') updateBulkBar();
+                updateBulkBar();
             };
             chip.appendChild(cb);
 
@@ -1296,19 +1223,12 @@
                 ${sw ? `<br><button class="px-reset" data-h="${hv}">↩</button>` : ''}
             `;
 
-            // 3. 各ボタンのイベント（pixelAppを介して実行）
-            inner.querySelector('.px-box').onclick = () => { 
-                if(window.pixelApp) pixelApp.highlight(hv); 
-            };
-            inner.querySelector('input[type="color"]').oninput = e => { 
-                if(window.pixelApp) pixelApp.swap(hv, e.target.value); 
-            };
+            // クリックイベント（pixelAppが未定義でも壊れないようにガード）
+            inner.querySelector('.px-box').onclick = () => { if(window.pixelApp) pixelApp.highlight(hv); };
+            inner.querySelector('input[type="color"]').oninput = e => { if(window.pixelApp) pixelApp.swap(hv, e.target.value); };
             
             const rb = inner.querySelector('.px-reset');
-            if (rb) rb.onclick = e => { 
-                e.stopPropagation(); 
-                if(window.pixelApp) pixelApp.resetSwap(hv); 
-            };
+            if (rb) rb.onclick = e => { e.stopPropagation(); if(window.pixelApp) pixelApp.resetSwap(hv); };
 
             chip.appendChild(inner);
             div.appendChild(chip);
@@ -1322,20 +1242,6 @@
         const g = parseInt(hex.slice(3, 5), 16);
         const b = parseInt(hex.slice(5, 7), 16);
         return `${r},${g},${b}`;
-    }
-
-    // 1-2. virtualCanvas から現在使われている色を抜き出す補助関数
-    function getHexPaletteFromCanvas(vcv) {
-        if (!vcv) return [];
-        const colors = new Set();
-        vcv.loadPixels();
-        for (let i = 0; i < vcv.pixels.length; i += 4) {
-            if (vcv.pixels[i+3] < 10) continue; // 透明
-            const r = vcv.pixels[i], g = vcv.pixels[i+1], b = vcv.pixels[i+2];
-            const hex = "#" + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
-            colors.add(hex);
-        }
-        return Array.from(colors);
     }
 
     function updateBulkBar() {
