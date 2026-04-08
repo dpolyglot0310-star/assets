@@ -164,18 +164,21 @@
                 p.noSmooth();
                 p.image(target, 0, 0, target.width * currentStep, target.height * currentStep);
 
-                // --- 2.5 ハイライト & 番号表示 (p.draw内) ---
+                // --- 2.5 ハイライト & ドット上に番号表示 ---
                 if (typeof selectedHex !== 'undefined' && selectedHex) {
                     p.push();
                     target.loadPixels();
                     
-                    // 現在選択されている色のマスター番号(loc)を先に取得しておく
+                    // 🌟 選択中の色のマスター番号(loc)を事前に特定しておく
                     let currentLoc = "";
-                    try {
-                        const targetRgb = hexToRgbStr(selectedHex);
-                        const masterItem = document.querySelector(`#px-preset-table input[data-rgb="${targetRgb}"]`);
-                        if (masterItem) currentLoc = masterItem.dataset.location || "";
-                    } catch (e) {}
+                    const targetRgb = hexToRgbStr(selectedHex).replace(/\s+/g, '');
+                    const masterItems = document.querySelectorAll(`#px-preset-table input[data-rgb]`);
+                    for (const item of masterItems) {
+                        if (item.dataset.rgb.replace(/\s+/g, '') === targetRgb) {
+                            currentLoc = item.dataset.location || "";
+                            break;
+                        }
+                    }
 
                     for (let y = 0; y < target.height; y++) {
                         for (let x = 0; x < target.width; x++) {
@@ -185,21 +188,24 @@
                             const hex = "#" + ((1 << 24) + (p.red(col) << 16) + (p.green(col) << 8) + p.blue(col)).toString(16).slice(1);
                             
                             if (hex !== selectedHex) {
-                                // 選択色以外を暗くする
+                                // 選択色以外を暗く
                                 p.fill(0, 0, 0, 160);
                                 p.noStroke();
                                 p.rect(x * currentStep, y * currentStep, currentStep, currentStep);
                             } else {
-                                // 🌟 選択色のドットの上に番号を表示
-                                p.fill(255, 255, 0); // 黄色
-                                p.noStroke();
+                                // 🌟 選択色のドットの上に番号を描画
+                                // 下地を少し明るく（必要なら）
+                                p.fill(255, 255, 0, 100); 
                                 p.rect(x * currentStep, y * currentStep, currentStep, currentStep);
-                                
-                                // 番号(loc)があれば描画
+
+                                // 番号テキスト
                                 if (currentLoc) {
-                                    p.fill(0); // 文字色は黒（または背景に応じて）
+                                    p.fill(255); // 文字色：白
+                                    p.stroke(0); // 文字の縁取り：黒
+                                    p.strokeWeight(2);
                                     p.textAlign(p.CENTER, p.CENTER);
-                                    p.textSize(Math.max(7, currentStep * 0.4)); // ドットサイズに合わせて調整
+                                    // ズーム倍率に合わせて文字サイズ調整
+                                    p.textSize(Math.constrain(currentStep * 0.6, 6, 14)); 
                                     p.text(currentLoc, x * currentStep + currentStep/2, y * currentStep + currentStep/2);
                                 }
                             }
