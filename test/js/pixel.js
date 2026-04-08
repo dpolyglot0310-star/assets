@@ -148,23 +148,57 @@
 
             // コントロールのイベント
             p.draw = () => {
-                p.clear(); // 背景を透明に
+                p.clear();
                 
                 const target = window.virtualCanvas || virtualCanvas;
                 if (!target) return;
 
-                // --- 1. 計算用の定数 ---
                 const zoom = parseFloat(document.getElementById('px-zoom').value) || 1;
                 const baseGrid = window.gridSize || 10;
-                const currentStep = baseGrid * zoom; // 🌟 画面上の1ドットの大きさ
+                const currentStep = baseGrid * zoom;
                 const showGuide = document.getElementById('px-show-guide').checked;
                 const bgColor = document.getElementById('px-bg').value;
+                const quantMethod = document.getElementById('px-quant-method')?.value; // 🌟追加
 
-                // --- 2. ドット絵本体 ---
+                // --- 🌟 描画前に「マスターへの強制」を行うセクション ---
+                if (quantMethod === 'preset') {
+                    const masterNodes = document.querySelectorAll(`#px-preset-table input[data-rgb]`);
+                    const masterPalettes = Array.from(masterNodes).map(input => input.dataset.rgb.split(',').map(Number));
+
+                    if (masterPalettes.length > 0) {
+                        target.loadPixels();
+                        for (let i = 0; i < target.pixels.length; i += 4) {
+                            if (target.pixels[i + 3] < 10) continue; // 透明ならパス
+
+                            const r = target.pixels[i];
+                            const g = target.pixels[i + 1];
+                            const b = target.pixels[i + 2];
+
+                            let minD = Infinity;
+                            let closest = [r, g, b];
+
+                            // 一番近いマスター色を探す
+                            for (const m of masterPalettes) {
+                                const d = Math.pow(r - m[0], 2) + Math.pow(g - m[1], 2) + Math.pow(b - m[2], 2);
+                                if (d < minD) {
+                                    minD = d;
+                                    closest = m;
+                                }
+                            }
+                            // targetのピクセル自体を書き換えてしまう
+                            target.pixels[i]     = closest[0];
+                            target.pixels[i + 1] = closest[1];
+                            target.pixels[i + 2] = closest[2];
+                        }
+                        target.updatePixels();
+                    }
+                }
+
+                // --- 2. ドット絵本体（書き換わったtargetをそのまま表示） ---
                 p.noSmooth();
                 p.image(target, 0, 0, target.width * currentStep, target.height * currentStep);
 
-                // --- 3. グリッド線 ---
+                // --- 3. グリッド線（ここからは元のコード通り） ---
                 if (document.getElementById('px-gridline').checked) {
                     p.stroke(document.getElementById('px-gridline-color').value);
                     p.strokeWeight(parseInt(document.getElementById('px-gridline-w').value));
@@ -180,7 +214,7 @@
                 if (showGuide && typeof guideOrigin !== 'undefined') {
                     p.push();
                     p.textAlign(p.CENTER, p.CENTER);
-                    p.noStroke(); // 🌟 文字に余計な線がつかないように
+                    p.noStroke();
                     
                     const accentColor = p.color(255, 255, 0); 
                     const subColor    = p.color(255, 255, 255); 
@@ -192,7 +226,6 @@
                         p.textSize(size);
                         
                         p.fill(edgeColor);
-                        // 縁取り（上下左右に1pxずらして描画）
                         for(let ox=-1; ox<=1; ox++) {
                             for(let oy=-1; oy<=1; oy++) {
                                 if(ox!==0 || oy!==0) p.text(txt, dx+ox, dy+oy);
@@ -203,16 +236,13 @@
                         p.text(txt, dx, dy);
                     };
 
-                    // 🌟 計算をループの外に出して高速化
                     const originYPos = guideOrigin.y * currentStep + currentStep/2;
                     const originXPos = guideOrigin.x * currentStep + currentStep/2;
 
-                    // X軸ガイド
                     for (let x = 0; x < target.width; x++) {
                         let diff = Math.abs(x - guideOrigin.x);
                         drawText(diff, x * currentStep + currentStep/2, originYPos, diff % 10 === 0);
                     }
-                    // Y軸ガイド
                     for (let y = 0; y < target.height; y++) {
                         let diff = Math.abs(y - guideOrigin.y);
                         if (diff === 0) continue;
@@ -221,7 +251,6 @@
                     p.pop();
                 }
             };
-
             p.applyPaint = (x, y, hex) => {
                 if (!window.virtualCanvas) return;
                 
