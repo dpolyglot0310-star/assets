@@ -486,55 +486,57 @@
             p.viewOriginal = () => { if (sourceImg) { rawImg=sourceImg.get(); p.redraw(); } };
             p.getCanvasDataURL = () => p.canvas ? p.canvas.toDataURL() : null;
             p.cropConfirm = () => {
-            const cv = p.canvas;
-            const cr = document.getElementById('crop-rect');
-            
-            // 🌟 重要：基準を sourceImg から rawImg に変更
-            // これにより「今見えている範囲」に対する比率が正しく出ます
-            const scaleX = rawImg.width / cv.offsetWidth;
-            const scaleY = rawImg.height / cv.offsetHeight;
+                const cr = document.getElementById('crop-rect');
+                if (!cr || !rawImg) return;
 
-            const rx = Math.round((parseInt(cr.style.left) || 0) * scaleX);
-            const ry = Math.round((parseInt(cr.style.top)  || 0) * scaleY);
-            const rw = Math.round((parseInt(cr.style.width)  || 100) * scaleX);
-            const rh = Math.round((parseInt(cr.style.height) || 100) * scaleY);
+                // 🌟 基準を Canvas の内部解像度に統一（これでズレを防ぐ）
+                const scaleX = rawImg.width / p.width;
+                const scaleY = rawImg.height / p.height;
 
-            if (rw < 2 || rh < 2) return;
+                const rx = Math.round(parseInt(cr.style.left) * scaleX);
+                const ry = Math.round(parseInt(cr.style.top) * scaleY);
+                const rw = Math.round(parseInt(cr.style.width) * scaleX);
+                const rh = Math.round(parseInt(cr.style.height) * scaleY);
 
-            p.pushHistory();
-            
-            // 現在の画像(rawImg)から切り出す
-            rawImg = rawImg.get(rx, ry, rw, rh); 
+                if (rw < 2 || rh < 2) return;
 
-            // 🌟 再計算を実行して virtualCanvas を更新
-            if (typeof pxUpdate === 'function') pxUpdate();
+                p.pushHistory();
 
-            hideCropRect();
-            document.getElementById('px-crop-confirm').style.display = 'none';
-            document.getElementById('px-crop-reset').style.display = 'inline-block';
-            p.redraw();
-        };
+                // 🌟 rawImg を直接 get して更新する
+                rawImg = rawImg.get(rx, ry, rw, rh);
+                window.rawImg = rawImg; // グローバルも同期
 
-            p.cropReset = () => {
-                // 1. オリジナルのバックアップを現在の作業用(rawImg)に書き戻す
-                if (!sourceImg) return;
-                rawImg = sourceImg.get(); 
-                
-                // 2. windowオブジェクト側の参照も更新（もしapp.jsなどでwindow.rawImgを使っている場合）
-                window.rawImg = rawImg;
-
-                // 3. ドット絵再計算
+                // 🌟 ドット絵再計算（これを忘れると見た目が変わらない）
                 if (typeof pxUpdate === 'function') {
-                    pxUpdate(); 
+                    pxUpdate();
                 }
 
                 hideCropRect();
                 document.getElementById('px-crop-confirm').style.display = 'none';
+                document.getElementById('px-crop-reset').style.display = 'inline-block';
+                p.redraw();
+            };
+            p.cropReset = () => {
+                // 1. sourceImg（オリジナル）があるか確認
+                if (!sourceImg) {
+                    console.error("元画像が見つかりません");
+                    return;
+                }
+
+                // 2. データを完全に初期状態に戻す
+                rawImg = sourceImg.get(); 
+                window.rawImg = rawImg;
+
+                // 3. UIをリセット
+                hideCropRect();
+                document.getElementById('px-crop-confirm').style.display = 'none';
                 document.getElementById('px-crop-reset').style.display = 'none';
-                
-                // 4. 切り抜きボタンを再表示
                 document.getElementById('px-crop-btn').style.display = 'inline-block';
-                
+
+                // 4. 重要：再計算して描画
+                if (typeof pxUpdate === 'function') {
+                    pxUpdate();
+                }
                 p.redraw();
             };
 
