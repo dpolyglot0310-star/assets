@@ -6,6 +6,9 @@
     let originCol = 0; // 基準となる列(X)
     let originRow = 0; // 基準となる行(Y)
 
+
+    let guideOrigin = { x: 0, y: 0 };
+
     // 以下20260406追加
 
     let usedPresetColors = new Set();
@@ -45,18 +48,6 @@
 
     function toHexStr(r, g, b) {
         return '#' + [r,g,b].map(v => Math.max(0,Math.min(255,v|0)).toString(16).padStart(2,'0')).join('');
-    }
-
-    function initPixel() {
-        if (pixelApp) return; // 初期化済み
-        if (!p5Loaded) {
-            const s = document.createElement('script');
-            s.src = 'https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js';
-            s.onload = () => { p5Loaded = true; _buildPixelApp(); };
-            document.head.appendChild(s);
-        } else {
-            _buildPixelApp();
-        }
     }
 
     function _buildPixelApp() {
@@ -240,6 +231,18 @@
                 p.redraw();
             };
 
+            function initPixel() {
+                if (pixelApp) return; // 初期化済み
+                if (!p5Loaded) {
+                    const s = document.createElement('script');
+                    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js';
+                    s.onload = () => { p5Loaded = true; _buildPixelApp(); };
+                    document.head.appendChild(s);
+                } else {
+                    _buildPixelApp();
+                }
+            }
+
             // ガイド表示用の関数（同階層に追加）
             function drawGuideOverlay() {
                 if (gridLine) {
@@ -256,8 +259,7 @@
                 p.save(virtualCanvas, "pixel_art_export.png");
             }
 
-            let guideOrigin = { x: 0, y: 0 };
-            let paintMode = null; // 'cell', 'rect' など
+            paintMode = null; // 'cell', 'rect' など
 
             // p5.js内のクリックイベントを拡張
             p.mousePressed = () => {
