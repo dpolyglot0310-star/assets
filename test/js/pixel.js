@@ -517,12 +517,23 @@
             };
 
             p.cropReset = () => {
+                // 1. データを元に戻す
                 rawImg = sourceImg ? sourceImg.get() : null;
+                
+                // 2. 重要：戻したデータでドット絵を再計算する 🌟
+                if (typeof pxUpdate === 'function') {
+                    pxUpdate();
+                }
+
+                // UIの表示設定
                 hideCropRect();
-                document.getElementById('px-crop-confirm').style.display='none';
-                document.getElementById('px-crop-reset').style.display='none';
+                document.getElementById('px-crop-confirm').style.display = 'none';
+                document.getElementById('px-crop-reset').style.display = 'none';
+                
+                // 3. 再描画
                 p.redraw();
             };
+
             p.pxUpdate = (gs,qs,uq,qm,dt,rm,bg,gl,glc,glw,mc,umc) => {
                 gridSize=gs; quantizeStep=qs; useQuant=uq; quantMethod=qm;
                 useDither=dt; rawMode=rm; bgColor=bg;
