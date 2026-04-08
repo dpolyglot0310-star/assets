@@ -147,29 +147,29 @@
             };
 
             // コントロールのイベント
+
             p.draw = () => {
                 p.clear();
-                // 画像が読み込まれていない場合は何もしない
-                if (!rawImg && !sourceImg) { return; }
-                if (!rawImg) { return; }
+                if (!rawImg && !sourceImg) return;
+                if (!rawImg) return;
 
-                // キャンバスサイズの調整
-                const drawW = p.width;
-                const drawH = p.floor(drawW / (rawImg.width / rawImg.height));
-                if (p.height !== drawH) { 
-                    p.resizeCanvas(drawW, drawH); 
-                    p.redraw(); 
-                    return; 
+                // --- 1. キャンバスとグリッドのサイズ計算 ---
+                // ここを以前の方式（gridSize基準）に固定してズレを防止
+                const cols = p.floor(p.width / gridSize);
+                const rows = p.floor(p.height / gridSize);
+                
+                // 表示上の高さを計算（画像の比率に合わせる）
+                const drawH = rows * gridSize;
+                if (p.height !== drawH) {
+                    p.resizeCanvas(p.width, drawH);
+                    return;
                 }
 
-                // グリッドと計算用の一時イメージ作成
-                const cols = p.floor(drawW / gridSize);
-                const rows = p.floor(drawH / gridSize);
+                // 計算用の一時イメージ
                 const temp = rawImg.get(); 
                 temp.resize(cols, rows); 
                 temp.loadPixels();
 
-                // 浮動小数点配列に色情報を格納（Alpha維持）
                 const buf = new Float32Array(temp.pixels.length);
                 for (let i = 0; i < temp.pixels.length; i += 4) {
                     buf[i]   = temp.pixels[i];
@@ -178,7 +178,7 @@
                     buf[i+3] = temp.pixels[i+3];
                 }
 
-                // --- 【1】量子化処理 (Median Cut, K-means, etc.) ---
+                // --- 2. 量子化処理 (Median Cut, K-means等) ---
                 if (!rawMode && useQuant) {
                     if (quantMethod === 'kmeans') {
                         kmeansQuantize(buf, cols, rows, quantizeStep, useDither);
@@ -203,24 +203,21 @@
                     }
                 }
 
-                // Hexカラー配列の作成
                 const quantColors = new Array(cols * rows);
                 for (let j = 0; j < cols * rows; j++) {
                     const i = j * 4;
                     quantColors[j] = toHexStr(buf[i], buf[i+1], buf[i+2]);
                 }
 
-                // パレットの整理と絞り込み
+                // --- 3. 色の絞り込み (Preset判定) ---
                 const paletteSet = new Set();
                 quantColors.forEach(h => paletteSet.add(h));
                 const sorted = Array.from(paletteSet).sort((a, b) => lum(p, b) - lum(p, a));
                 const limited = (rawMode || !useMaxColors) ? sorted : sorted.slice(0, maxColors);
                 const remap = {};
 
-                // --- 【2】色の最終決定ロジック ---
                 let finalColors;
                 if (!rawMode && quantMethod === 'preset') {
-                    // マスタープリセットモード：固定パレットへ強制
                     const targetPalettes = Array.from(activeMasterColors).map(str => str.split(',').map(Number));
                     if (typeof usedPresetColors !== 'undefined') usedPresetColors.clear();
 
@@ -237,7 +234,6 @@
                     });
                     if (typeof updatePresetUnderline === 'function') setTimeout(updatePresetUnderline, 0);
                 } else {
-                    // アルゴリズムモード（Median Cut等）：抽出した色をそのまま使用、または上限数で丸める
                     if (!rawMode && useMaxColors && limited.length < sorted.length) {
                         sorted.forEach(h => {
                             if (!limited.includes(h)) {
@@ -255,52 +251,52 @@
                     finalColors = quantColors.map(h => remap[h] || h);
                 }
 
-                // --- 【3】メイン描画（1ドットずつ） ---
+                // --- 4. 描画フェーズ ---
+                p.noSmooth();
                 if (gridLine) { p.stroke(gridLineColor); p.strokeWeight(gridLineWeight); } else { p.noStroke(); }
                 const finalPalette = new Set();
 
-                for (let y = 0; y < rows; y++) for (let x = 0; x < cols; x++) {
-                    const idx = x + y * cols;
-                    const i = idx * 4;
-                    const fc = finalColors[idx];
-                    const dh = rawMode ? fc : (swapMap[fc] || fc);
-                    const alpha = buf[i + 3];
+                for (let y = 0; y < rows; y++) {
+                    for (let x = 0; x < cols; x++) {
+                        const idx = x + y * cols;
+                        const i = idx * 4;
+                        const fc = finalColors[idx];
+                        const dh = rawMode ? fc : (swapMap[fc] || fc);
+                        const alpha = buf[i + 3];
 
-                    if (alpha > 10) finalPalette.add(dh);
+                        if (alpha > 10) finalPalette.add(dh);
 
-                    const dc = p.color(dh);
-                    let r = p.red(dc), g = p.green(dc), b = p.blue(dc);
-                    
-                    // ハイライト（選択色以外を暗転）
-                    if (selectedHex && dh !== selectedHex) { r *= 0.2; g *= 0.2; b *= 0.2; }
+                        const dc = p.color(dh);
+                        let r = p.red(dc), g = p.green(dc), b = p.blue(dc);
+                        
+                        // ハイライト処理
+                        if (selectedHex && dh !== selectedHex) { r *= 0.2; g *= 0.2; b *= 0.2; }
 
-                    p.fill(r, g, b, alpha);
-                    p.rect(x * gridSize, y * gridSize, gridSize, gridSize);
+                        p.fill(r, g, b, alpha);
+                        // 🌟 座標計算を修正：x*gridSize で描画することで拡大ズレを防止
+                        p.rect(x * gridSize, y * gridSize, gridSize, gridSize);
+                    }
                 }
 
                 const finalSorted = Array.from(finalPalette).sort((a, b) => lum(p, b) - lum(p, a));
 
-                // --- 【4】番号表示ロジック（ここが今回の肝） ---
+                // --- 5. 番号(loc)表示 ---
                 if (selectedHex && gridSize > 8) {
                     let displayTxt = "";
-
-                    // マスタープリセットモードの場合のみloc(1-1等)を探す
                     if (!rawMode && quantMethod === 'preset') {
                         const selC = p.color(selectedHex);
                         const sr = p.red(selC), sg = p.green(selC), sb = p.blue(selC);
                         const masterItems = document.querySelectorAll(`#px-preset-table input[data-rgb]`);
-                        let minD = 15;
+                        let minD = 20; // 判定を少し広げて確実にヒットさせる
                         for (const item of masterItems) {
                             const mRgb = item.dataset.rgb.split(',').map(Number);
                             const d = Math.abs(mRgb[0] - sr) + Math.abs(mRgb[1] - sg) + Math.abs(mRgb[2] - sb);
                             if (d < minD) { displayTxt = item.dataset.location; break; }
                         }
                     } else {
-                        // それ以外（Median Cut等）は、パレットのインデックス番号を出す
                         displayTxt = String(finalSorted.indexOf(selectedHex));
                     }
 
-                    // テキスト描画
                     if (displayTxt !== "") {
                         p.push();
                         p.textAlign(p.CENTER, p.CENTER);
@@ -309,37 +305,28 @@
                             const fc = finalColors[x + y * cols];
                             const dh = rawMode ? fc : (swapMap[fc] || fc);
                             if (dh === selectedHex) {
-                                p.fill(lum(p, dh) > 128 ? 0 : 255); // 背景の明るさで文字色反転
+                                p.fill(lum(p, dh) > 128 ? 0 : 255);
                                 p.noStroke();
-                                p.text(displayTxt, x * gridSize + gridSize / 2, y * gridSize + gridSize / 2);
+                                p.text(displayTxt, x * gridSize + gridSize/2, y * gridSize + gridSize/2);
                             }
                         }
                         p.pop();
                     }
                 }
 
-                // ペイントモードの表示
-                if (paintMode === 'cell' && paintPendingCells.size > 0) {
-                    p.noStroke(); p.fill(255, 255, 0, 120);
-                    paintPendingCells.forEach(key => {
-                        const [cx, cy] = key.split(',').map(Number);
-                        p.rect(cx * gridSize, cy * gridSize, gridSize, gridSize);
-                    });
-                }
-
-                // --- 【5】十字座標ガイド ---
+                // --- 6. 十字座標ガイド ---
                 if (showGuide) {
                     p.push();
                     const accentColor = p.color(255, 255, 0), subColor = p.color(255, 255, 255), edgeColor = p.color(bgColor);
                     p.textAlign(p.CENTER, p.CENTER);
-                    const drawGuideText = (val, x, y, isAccent) => {
+                    const drawGuideText = (val, gx, gy, isAccent) => {
                         const txt = (val === 0) ? "0" : (val % 10 === 0 ? val : val % 10);
                         const size = isAccent ? Math.max(10, gridSize * 0.5) : Math.max(8, gridSize * 0.35);
                         p.textSize(size);
                         p.fill(edgeColor);
-                        for(let ox = -1; ox <= 1; ox++) for(let oy = -1; oy <= 1; oy++) if(ox || oy) p.text(txt, x + ox, y + oy);
+                        for(let ox = -1; ox <= 1; ox++) for(let oy = -1; oy <= 1; oy++) if(ox || oy) p.text(txt, gx + ox, gy + oy);
                         p.fill(isAccent ? accentColor : subColor);
-                        p.text(txt, x, y);
+                        p.text(txt, gx, gy);
                     };
                     for (let x = 0; x < cols; x++) {
                         let d = Math.abs(x - originCol);
@@ -352,9 +339,9 @@
                     p.pop();
                 }
 
-                // 右側パレットUIの更新
                 renderPxPalette(finalSorted, selectedHex, swapMap);
             };
+
             p.applyPaint = (x, y, hex) => {
                 if (!window.virtualCanvas) return;
                 
