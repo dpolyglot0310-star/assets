@@ -46,6 +46,19 @@
 
     // ここまで20260406
 
+
+    function initPixel() {
+        if (pixelApp) return; // 初期化済み
+        if (!p5Loaded) {
+            const s = document.createElement('script');
+            s.src = 'https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js';
+            s.onload = () => { p5Loaded = true; _buildPixelApp(); };
+            document.head.appendChild(s);
+        } else {
+            _buildPixelApp();
+        }
+    }
+
     function toHexStr(r, g, b) {
         return '#' + [r,g,b].map(v => Math.max(0,Math.min(255,v|0)).toString(16).padStart(2,'0')).join('');
     }
@@ -231,17 +244,6 @@
                 p.redraw();
             };
 
-            function initPixel() {
-                if (pixelApp) return; // 初期化済み
-                if (!p5Loaded) {
-                    const s = document.createElement('script');
-                    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js';
-                    s.onload = () => { p5Loaded = true; _buildPixelApp(); };
-                    document.head.appendChild(s);
-                } else {
-                    _buildPixelApp();
-                }
-            }
 
             // ガイド表示用の関数（同階層に追加）
             function drawGuideOverlay() {
