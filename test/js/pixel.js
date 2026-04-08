@@ -545,7 +545,16 @@
                 useDither=dt; rawMode=rm; bgColor=bg;
                 gridLine=gl; gridLineColor=glc; gridLineWeight=glw;
                 maxColors=mc; useMaxColors=umc;
+
+                // 🌟 描画を予約
                 p.redraw();
+
+                // 🌟 少しだけ遅らせて（描画完了後など）パレットUIを更新する
+                // もしくは直接ここでUI更新関数を呼ぶ
+                if (typeof updateUsedColorsUI === 'function') {
+                    // virtualCanvas の中身を集計して HTML を書き換える関数
+                    setTimeout(updateUsedColorsUI, 50); 
+                }
             };
             p.pushHistory = () => {
                 if (!rawImg) return;
@@ -1487,3 +1496,48 @@
             }
         });
     }
+
+    function updateUsedColorsUI() {
+        const container = document.getElementById('px-used-colors'); // 👈 HTMLにこのIDがあるか確認
+        if (!container || !window.virtualCanvas) return;
+
+        container.innerHTML = '';
+        const usedColors = new Set();
+        
+        window.virtualCanvas.loadPixels();
+        for (let i = 0; i < window.virtualCanvas.pixels.length; i += 4) {
+            const r = window.virtualCanvas.pixels[i];
+            const g = window.virtualCanvas.pixels[i+1];
+            const b = window.virtualCanvas.pixels[i+2];
+            const a = window.virtualCanvas.pixels[i+3];
+            
+            if (a > 10) { // 透明以外
+                usedColors.add(`${r},${g},${b}`);
+            }
+        }
+
+        // 集計した色をチップとして並べる
+        usedColors.forEach(rgbKey => {
+            const item = document.createElement('div');
+            item.className = 'color-chip-item'; // CSSで調整用
+            item.style.display = 'inline-flex';
+            item.style.alignItems = 'center';
+            item.style.margin = '2px';
+
+            const chip = document.createElement('div');
+            chip.style.width = '15px';
+            chip.style.height = '15px';
+            chip.style.background = `rgb(${rgbKey})`;
+            chip.style.border = '1px solid #888';
+
+            item.appendChild(chip);
+            container.appendChild(item);
+        });
+    }
+
+    // HTMLの読み込みが終わったらパレットUIを作る
+    document.addEventListener('DOMContentLoaded', () => {
+        if (typeof initMasterPresetTable === 'function') {
+            initMasterPresetTable();
+        }
+    });
