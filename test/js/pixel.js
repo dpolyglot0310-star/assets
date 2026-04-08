@@ -144,29 +144,86 @@
 
             // コントロールのイベント
             p.draw = () => {
-                p.clear();
+                p.clear(); // 🌟 これで背景が透明になります
+                
                 const target = window.virtualCanvas || virtualCanvas;
                 if (!target) return;
 
-                // 背景色（ガイド色）の適用
-                const bgCol = document.getElementById('px-bg').value;
-                p.background(bgCol);
-
+                // --- 1. 基本設定の取得 ---
                 const zoom = parseFloat(document.getElementById('px-zoom').value) || 1;
-                const drawW = target.width * (window.gridSize * zoom);
-                const drawH = target.height * (window.gridSize * zoom);
+                const currentGridSize = (window.gridSize || 10) * zoom; // 🌟 Zoomを考慮した1ドットの描画サイズ
+                const showGuide = document.getElementById('px-show-guide').checked;
+                const bgColor = document.getElementById('px-bg').value; // 縁取り用
+                
+                // 基準点（中心や0,0など、必要に応じて調整してください）
+                const originCol = 0; 
+                const originRow = 0;
 
-                // ドット絵の描画
+                // --- 2. ドット絵本体の描画 ---
                 p.noSmooth();
-                p.image(target, 0, 0, drawW, drawH);
+                p.image(target, 0, 0, target.width * currentGridSize, target.height * currentGridSize);
 
-                // グリッド表示のチェック
+                // --- 3. グリッド線の描画 ---
                 if (document.getElementById('px-gridline').checked) {
                     p.stroke(document.getElementById('px-gridline-color').value);
                     p.strokeWeight(parseInt(document.getElementById('px-gridline-w').value));
-                    const step = window.gridSize * zoom;
-                    for (let x = 0; x <= drawW; x += step) p.line(x, 0, x, drawH);
-                    for (let y = 0; y <= drawH; y += step) p.line(0, y, drawW, y);
+                    for (let x = 0; x <= target.width; x++) {
+                        p.line(x * currentGridSize, 0, x * currentGridSize, target.height * currentGridSize);
+                    }
+                    for (let y = 0; y <= target.height; y++) {
+                        p.line(0, y * currentGridSize, target.width * currentGridSize, y * currentGridSize);
+                    }
+                }
+
+                // --- 4. 座標ガイド（番号）の描画 ---
+                if (showGuide) {
+                    p.push();
+                    const accentColor = p.color(255, 255, 0); // 10刻み
+                    const subColor    = p.color(255, 255, 255); // 通常
+                    const edgeColor   = p.color(bgColor);       // 縁取り
+                    p.textAlign(p.CENTER, p.CENTER);
+
+                    const drawGuideText = (val, x, y, isAccent) => {
+                        const txt = (val === 0) ? "0" : (val % 10 === 0 ? val : val % 10);
+                        // 🌟 Zoomに合わせて文字サイズも調整
+                        const size = isAccent ? Math.max(10, currentGridSize * 0.5) : Math.max(8, currentGridSize * 0.35);
+                        p.textSize(size);
+
+                        // 縁取り
+                        p.fill(edgeColor);
+                        for(let offX = -1; offX <= 1; offX++) {
+                            for(let offY = -1; offY <= 1; offY++) {
+                                if(offX === 0 && offY === 0) continue;
+                                p.text(txt, x + offX, y + offY);
+                            }
+                        }
+                        // メイン
+                        p.fill(isAccent ? accentColor : subColor);
+                        p.text(txt, x, y);
+                    };
+
+                    // X軸
+                    for (let x = 0; x < target.width; x++) {
+                        let diff = Math.abs(x - originCol);
+                        drawGuideText(
+                            diff, 
+                            x * currentGridSize + currentGridSize/2, 
+                            originRow * currentGridSize + currentGridSize/2, 
+                            diff % 10 === 0
+                        );
+                    }
+                    // Y軸
+                    for (let y = 0; y < target.height; y++) {
+                        let diff = Math.abs(y - originRow);
+                        if (diff === 0) continue;
+                        drawGuideText(
+                            diff, 
+                            originCol * currentGridSize + currentGridSize/2, 
+                            y * currentGridSize + currentGridSize/2, 
+                            diff % 10 === 0
+                        );
+                    }
+                    p.pop();
                 }
             };
 
@@ -188,8 +245,9 @@
 
             p.mousePressed = () => {
                 // 画面上のクリック座標をドット座標に変換
-                let tx = Math.floor(p.mouseX / displayScale);
-                let ty = Math.floor(p.mouseY / displayScale);
+                const zoom = parseFloat(document.getElementById('px-zoom').value) || 1;
+                const dotX = Math.floor(p.mouseX / (window.gridSize * zoom));
+                const dotY = Math.floor(p.mouseY / (window.gridSize * zoom));
                 
                 // virtualCanvas の (tx, ty) の色を塗り替える... 
             };
@@ -562,17 +620,34 @@
 
         // 補助：プリセット近似処理の分離
         function applyPresetQuantize(buf, cols, rows) {
-            const targetPalettes = Array.from(activeMasterColors).map(str => str.split(',').map(Number));
-            if (targetPalettes.length === 0) return;
+            // 1. アクティブなパレットを数値配列に変換
+            const palette = Array.from(activeMasterColors).map(s => s.split(',').map(Number));
+            
+            // パレットが空なら何もしない（ここが重要）
+            if (palette.length === 0) {
+                console.warn("パレットが選択されていません");
+                return;
+            }
 
             for (let i = 0; i < buf.length; i += 4) {
+                if (buf[i+3] < 10) continue; // 透明ピクセル無視
+
                 let minD = Infinity;
-                let closest = [buf[i], buf[i+1], buf[i+2]];
-                for (const pal of targetPalettes) {
-                    const d = Math.pow(buf[i] - pal[0], 2) + Math.pow(buf[i+1] - pal[1], 2) + Math.pow(buf[i+2] - pal[2], 2);
-                    if (d < minD) { minD = d; closest = pal; }
+                let closest = [palette[0][0], palette[0][1], palette[0][2]];
+
+                for (const p of palette) {
+                    // Lab色空間が理想ですが、まずは単純なRGB距離で
+                    const d = Math.pow(buf[i] - p[0], 2) + 
+                            Math.pow(buf[i+1] - p[1], 2) + 
+                            Math.pow(buf[i+2] - p[2], 2);
+                    if (d < minD) {
+                        minD = d;
+                        closest = p;
+                    }
                 }
-                buf[i] = closest[0]; buf[i+1] = closest[1]; buf[i+2] = closest[2];
+                buf[i] = closest[0];
+                buf[i+1] = closest[1];
+                buf[i+2] = closest[2];
             }
         }
 
@@ -1199,6 +1274,11 @@
                 if (typeof pxUpdate === 'function') pxUpdate();
             });
         };
+
+        document.getElementById('px-zoom').addEventListener('input', (e) => {
+            document.getElementById('px-zoom-val').innerText = Math.round(e.target.value * 100) + "%";
+            pxUpdate(); // または p.redraw()
+        });
 
         // HTMLの各IDと、JS側で使っている変数名を紐付け
         sync('px-grid', 'gridSize');            // Pixel Size
