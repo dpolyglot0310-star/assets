@@ -1526,77 +1526,37 @@
 
         // --- 2. 各グループの生成 ---
         Object.entries(gameMasterPalette).forEach(([groupName, colors], groupIdx) => {
-            const groupDiv = document.createElement('div');
-            groupDiv.className = 'px-preset-group';
-            groupDiv.style.marginBottom = '8px';
-
-            // ヘッダーを div にして、親チェックと一括リンクを並べる
-            const header = document.createElement('div');
-            header.style.cssText = 'display:flex; align-items:center; background:#2a2a2a; padding:4px 6px; font-size:11px; color:#00ffcc; justify-content:space-between;';
-
-            // 左側：親チェックボックス
-            const leftSide = document.createElement('label');
-            leftSide.style.cssText = 'display:flex; align-items:center; cursor:pointer;';
-            const groupCb = document.createElement('input');
-            groupCb.type = 'checkbox';
-            groupCb.className = 'group-master-check';
-            groupCb.checked = true;
-            groupCb.onchange = () => pxUpdate();
-
-            leftSide.appendChild(groupCb);
-            leftSide.appendChild(document.createTextNode(` ${groupName}`));
-            header.appendChild(leftSide);
-
-            // 右側：🌟 グループ内一括操作リンク (ここを追加しました)
-            const groupLinks = document.createElement('div');
-            const gOn = document.createElement('span');
-            gOn.textContent = '[ON]';
-            gOn.style.cssText = 'cursor:pointer; font-size:9px; color:#fff; margin-left:8px; text-decoration:underline;';
-            const gOff = document.createElement('span');
-            gOff.textContent = '[OFF]';
-            gOff.style.cssText = 'cursor:pointer; font-size:9px; color:#fff; margin-left:5px; text-decoration:underline;';
-            
-            groupLinks.appendChild(gOn);
-            groupLinks.appendChild(gOff);
-            header.appendChild(groupLinks);
-            
-            groupDiv.appendChild(header);
-
-            const childGrid = document.createElement('div');
-            childGrid.style.cssText = 'display:grid; grid-template-columns:repeat(2,1fr); gap:3px; padding:6px; background:#222;';
+            // ... (ヘッダー生成などはそのまま) ...
 
             colors.forEach((rgb, childIdx) => {
                 const rgbKey = rgb.join(',');
                 const item = document.createElement('label');
-                item.style.cssText = 'display:flex; align-items:center; font-size:10px; cursor:pointer;';
+                item.style.cssText = 'display:flex; align-items:center; font-size:10px; cursor:pointer; position:relative; margin-bottom:2px;';
 
                 const cb = document.createElement('input');
                 cb.type = 'checkbox';
                 cb.className = 'child-color-check';
                 cb.checked = true;
-                cb.dataset.rgb = rgbKey; // 🌟 減色計算に必須
+                cb.dataset.rgb = rgbKey;
+                cb.dataset.location = `${groupIdx}-${childIdx}`; // データとしても保持
                 cb.onchange = () => pxUpdate();
 
-                const chip = document.createElement('div');
-                chip.style.cssText = `width:12px; height:12px; background:rgb(${rgbKey}); margin:0 4px; border:1px solid #555;`;
+                // 🌟 番号表示用のスパンを追加
+                const numSpan = document.createElement('span');
+                numSpan.textContent = `${groupIdx}-${childIdx}`;
+                numSpan.style.cssText = 'min-width:24px; color:#888; font-size:9px; margin-right:4px; font-family:monospace; text-align:right;';
 
+                const chip = document.createElement('div');
+                chip.style.cssText = `width:12px; height:12px; background:rgb(${rgbKey}); margin:0 4px; border:1px solid #555; flex-shrink:0;`;
+
+                // 組み立て順： [チェック] [番号] [チップ] [RGBテキスト]
                 item.appendChild(cb);
+                item.appendChild(numSpan); // 🌟 ここで番号を挿入
                 item.appendChild(chip);
                 item.appendChild(document.createTextNode(rgbKey));
+                
                 childGrid.appendChild(item);
             });
-
-            // 🌟 グループ一括リンクのロジック
-            gOn.onclick = () => {
-                childGrid.querySelectorAll('input').forEach(c => c.checked = true);
-                groupCb.checked = true; // ついでに親もONにする
-                pxUpdate();
-            };
-            gOff.onclick = () => {
-                childGrid.querySelectorAll('input').forEach(c => c.checked = false);
-                // 親はOFFにせずそのままにする（親ON・子全OFFで「実質OFF」になるため、あるいは親もOFFにしてもOK）
-                pxUpdate();
-            };
 
             groupDiv.appendChild(childGrid);
             container.appendChild(groupDiv);
