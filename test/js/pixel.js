@@ -744,43 +744,31 @@
                 if (!currentRawMode && currentUseQuant) {
                     if (currentMethod === 'preset') {
                         const masterPalettes = [];
-                            const groups = document.querySelectorAll('.px-preset-group');
+                        // クラス名ではなく、階層構造で直接取得する
+                        const groups = document.querySelectorAll('#px-preset-table > div'); // 各グループのdiv
+                        
+                        groups.forEach(group => {
+                            // グループの先頭にある親チェックボックス（一番最初のinput）
+                            const groupCb = group.querySelector('input[type="checkbox"]');
                             
-                            groups.forEach(group => {
-                                const groupCb = group.querySelector('.group-master-check');
-                                // 親がONのときだけ、その中のチェックされた子を探す
-                                if (groupCb && groupCb.checked) {
-                                    const childCbs = group.querySelectorAll('.child-color-check:checked');
-                                    childCbs.forEach(cb => {
-                                        masterPalettes.push(cb.dataset.rgb.split(',').map(Number));
-                                    });
-                                }
-                            });
+                            if (groupCb && groupCb.checked) {
+                                // そのグループ内にある、色のデータ(data-rgb)を持ったチェックされている子を探す
+                                const childCbs = group.querySelectorAll('input[data-rgb]:checked');
+                                childCbs.forEach(cb => {
+                                    masterPalettes.push(cb.dataset.rgb.split(',').map(Number));
+                                });
+                            }
+                        });
+
+                        // 🌟 デバッグ用：ここでコンソールを確認
+                        // console.log("有効な色数:", masterPalettes.length);
 
                         if (masterPalettes.length > 0) {
-                            colorCache.clear();
-
-                            for (let i = 0; i < buf.length; i += 4) {
-                                if (buf[i + 3] < 10) continue;
-                                
-                                const key = `${buf[i]},${buf[i+1]},${buf[i+2]}`;
-                                
-                                if (!colorCache.has(key)) {
-                                    let minD = Infinity;
-                                    let closest = masterPalettes[0];
-                                    for (const m of masterPalettes) {
-                                        // 二乗誤差で最も近い「有効な（チェック済みの）」色を探す
-                                        const d = Math.pow(buf[i]-m[0],2) + Math.pow(buf[i+1]-m[1],2) + Math.pow(buf[i+2]-m[2],2);
-                                        if (d < minD) { minD = d; closest = m; }
-                                    }
-                                    colorCache.set(key, closest);
-                                }
-
-                                const finalColor = colorCache.get(key);
-                                buf[i] = finalColor[0];
-                                buf[i+1] = finalColor[1];
-                                buf[i+2] = finalColor[2];
-                            }
+                            // ...（最短距離計算のループ）...
+                        } else {
+                            // 色が0個のときは、真っ白にならないよう処理を抜けるか、
+                            // canvasをクリアするなどの処理を入れる
+                            return; 
                         }
                     }else if (currentMethod === 'kmeans') {
                         kmeansQuantize(buf, cols, rows, currentStep, currentUseDither);
