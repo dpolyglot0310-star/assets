@@ -246,8 +246,15 @@
                     let closest = masterPalettes[0];
 
                     for (const m of masterPalettes) {
-                        const d = Math.pow(r - m[0], 2) + Math.pow(g - m[1], 2) + Math.pow(b - m[2], 2);
-                        if (d < minD) { minD = d; closest = m; }
+                        // 🔴 ここです！この計算式を「重み付き」に変えます
+                        const d = Math.pow((r - m[0]) * 0.299, 2) + 
+                                Math.pow((g - m[1]) * 0.587, 2) + 
+                                Math.pow((b - m[2]) * 0.114, 2);
+                                
+                        if (d < minD) { 
+                            minD = d; 
+                            closest = m; 
+                        }
                     }
                     // ピクセル値を完全に上書き
                     target.pixels[i]     = closest[0];
