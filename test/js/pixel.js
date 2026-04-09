@@ -671,7 +671,7 @@
             
                     // コントロールのイベント
 
-
+            let colorCache = new Map();
             window.pxUpdate = function() {
                 console.log("pxUpdate開始");
                 
@@ -710,21 +710,35 @@
                 // --- 4. 減色・量子化の実行 ---
                 if (!currentRawMode && currentUseQuant) {
                     if (currentMethod === 'preset') {
-                        // 🌟 プリセット強制モード
                         const masterNodes = document.querySelectorAll(`#px-preset-table input[data-rgb]`);
                         const masterPalettes = Array.from(masterNodes).map(input => input.dataset.rgb.split(',').map(Number));
 
                         if (masterPalettes.length > 0) {
+                            // 🌟 キャッシュをリセット（マスターが変わった時用）
+                            colorCache.clear();
+
                             for (let i = 0; i < buf.length; i += 4) {
                                 if (buf[i + 3] < 10) continue;
-                                const r = buf[i], g = buf[i+1], b = buf[i+2];
-                                let minD = Infinity;
-                                let closest = masterPalettes[0];
-                                for (const m of masterPalettes) {
-                                    const d = Math.pow(r - m[0], 2) + Math.pow(g - m[1], 2) + Math.pow(b - m[2], 2);
-                                    if (d < minD) { minD = d; closest = m; }
+                                
+                                // RGBを一つの数値にまとめてキーにする (例: 255,128,64 -> "255,128,64")
+                                const key = `${buf[i]},${buf[i+1]},${buf[i+2]}`;
+                                
+                                if (!colorCache.has(key)) {
+                                    // まだ計算していない色なら、一番近いマスターを探す
+                                    let minD = Infinity;
+                                    let closest = masterPalettes[0];
+                                    for (const m of masterPalettes) {
+                                        const d = Math.pow(buf[i]-m[0],2) + Math.pow(buf[i+1]-m[1],2) + Math.pow(buf[i+2]-m[2],2);
+                                        if (d < minD) { minD = d; closest = m; }
+                                    }
+                                    colorCache.set(key, closest);
                                 }
-                                buf[i] = closest[0]; buf[i+1] = closest[1]; buf[i+2] = closest[2];
+
+                                // キャッシュから一瞬で取得
+                                const finalColor = colorCache.get(key);
+                                buf[i] = finalColor[0];
+                                buf[i+1] = finalColor[1];
+                                buf[i+2] = finalColor[2];
                             }
                         }
                     } else if (currentMethod === 'kmeans') {
