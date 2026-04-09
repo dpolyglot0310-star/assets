@@ -805,9 +805,23 @@
                 if (typeof updatePalette === 'function') updatePalette();
                 if (typeof updatePresetUnderline === 'function') updatePresetUnderline();
                 
-                // 🌟 パレット表示を最新の virtualCanvas に合わせる
+                // 🌟 パレット表示を「マスタープリセット」に完全同期させる
                 if (typeof renderPxPalette === 'function') {
-                    const palette = getHexPaletteFromCanvas(window.virtualCanvas);
+                    let palette = [];
+                    
+                    if (currentMethod === 'preset') {
+                        // 【マスターモード時】キャンバスは見ず、入力欄（マスター）の色だけを表示
+                        const masterNodes = document.querySelectorAll(`#px-preset-table input[data-rgb]`);
+                        palette = Array.from(masterNodes).map(input => {
+                            const rgb = input.dataset.rgb.split(',').map(Number);
+                            // 誤差が出ないよう、RGBから直接Hexを作る（toHexStrが定義されている前提）
+                            return toHexStr(rgb[0], rgb[1], rgb[2]);
+                        });
+                    } else {
+                        // 【通常モード時】今まで通りキャンバスから色を抽出
+                        palette = getHexPaletteFromCanvas(window.virtualCanvas);
+                    }
+                    
                     renderPxPalette(palette, window.selectedHex || "", swapMap || {});
                 }
 
