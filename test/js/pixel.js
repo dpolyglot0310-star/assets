@@ -743,41 +743,34 @@
                 // --- 4. 減色・量子化の実行 ---
                 if (!currentRawMode && currentUseQuant) {
                     if (currentMethod === 'preset') {
-                        const masterNodes = document.querySelectorAll(`#px-preset-table input[data-rgb]`);
+                        // 🌟 修正ポイント：チェックが入っている input だけを取得するように変更
+                        const masterNodes = document.querySelectorAll(`#px-preset-table input[data-rgb]:checked`);
+                        
+                        // チェックされている色が一つもない場合のガード
+                        if (masterNodes.length === 0) {
+                            console.log("選択されているマスターカラーがありません");
+                            return; 
+                        }
+
                         const masterPalettes = Array.from(masterNodes).map(input => input.dataset.rgb.split(',').map(Number));
 
                         if (masterPalettes.length > 0) {
+                            // キャッシュをリセット（選択状態が変わるたびに計算し直すため）
                             colorCache.clear();
-
-                            // 🌟 スライダーの値を「色の距離」に変換 (調整しやすいよう currentStep を活用)
-                            // currentStepが128なら差が大きくてもまとめる、1なら厳密に。
-                            // 二乗誤差で計算しているので、感度調整用に scale を掛けています。
-                            const tolerance = Math.pow(currentStep, 2); 
 
                             for (let i = 0; i < buf.length; i += 4) {
                                 if (buf[i + 3] < 10) continue;
+                                
                                 const key = `${buf[i]},${buf[i+1]},${buf[i+2]}`;
                                 
                                 if (!colorCache.has(key)) {
                                     let minD = Infinity;
                                     let closest = masterPalettes[0];
-                                    
                                     for (const m of masterPalettes) {
-                                        // RGBの距離を計算
+                                        // 二乗誤差で最も近い「有効な（チェック済みの）」色を探す
                                         const d = Math.pow(buf[i]-m[0],2) + Math.pow(buf[i+1]-m[1],2) + Math.pow(buf[i+2]-m[2],2);
-                                        
-                                        // 🌟 ここで tolerance (しきい値) を活用する案
-                                        // 1. まず一番近い色を探す（現状維持）
-                                        if (d < minD) { 
-                                            minD = d; 
-                                            closest = m; 
-                                        }
+                                        if (d < minD) { minD = d; closest = m; }
                                     }
-
-                                    // 🌟 【案】もし一番近い色でも一定以上離れていたら、背景色にする等の
-                                    // 「切り捨て」をしたい場合はここを使いますが、
-                                    // 今回は「マスターの中でまとめる」なので、この後のフィルタリングが効いてきます。
-                                    
                                     colorCache.set(key, closest);
                                 }
 
@@ -787,7 +780,7 @@
                                 buf[i+2] = finalColor[2];
                             }
                         }
-                    } else if (currentMethod === 'kmeans') {
+                    }else if (currentMethod === 'kmeans') {
                         kmeansQuantize(buf, cols, rows, currentStep, currentUseDither);
                     } else if (currentMethod === 'mediancut') {
                         medianCutQuantize(buf, cols, rows, currentStep, currentUseDither);
