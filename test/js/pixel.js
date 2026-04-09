@@ -164,13 +164,22 @@
                 p.noSmooth();
                 p.image(target, 0, 0, target.width * currentStep, target.height * currentStep);
 
-                // --- 2. 番号（Loc）とハイライト、および減光処理 ---
-                if (selectedHex && currentStep > 8) {
-                    const masterNodes = document.querySelectorAll(`#px-preset-table input[data-rgb]`);
+                // --- 2. ハイライト・減光処理・番号表示 ---
+                // selectedHexがあれば、マスターへの登録有無に関わらず実行
+                if (selectedHex && currentStep > 4) {
+                    p.push();
+
+                    // 🌟 2-A. 全体を暗くする（ディム効果）
+                    p.noStroke();
+                    p.fill(0, 140); 
+                    p.rect(0, 0, target.width * currentStep, target.height * currentStep);
+
                     const selC = p.color(selectedHex);
                     const sr = p.red(selC), sg = p.green(selC), sb = p.blue(selC);
                     
+                    // 🌟 2-B. マスターからLoc（番号）を探す（一致しなくてもハイライト自体は継続）
                     let targetLoc = "";
+                    const masterNodes = document.querySelectorAll(`#px-preset-table input[data-rgb]`);
                     for (const input of masterNodes) {
                         const rgb = input.dataset.rgb.split(',').map(Number);
                         if (Math.abs(rgb[0]-sr) + Math.abs(rgb[1]-sg) + Math.abs(rgb[2]-sb) < 10) {
@@ -179,38 +188,33 @@
                         }
                     }
 
-                    if (targetLoc) {
-                        p.push();
-                        // 🌟 【新機能】選択色以外を少し暗くする（ディム効果）
-                        p.noStroke();
-                        p.fill(0, 140); // 140/255 の透明度で全体を暗く
-                        p.rect(0, 0, target.width * currentStep, target.height * currentStep);
+                    target.loadPixels();
+                    p.textAlign(p.CENTER, p.CENTER);
+                    p.textSize(currentStep * 0.5);
+                    
+                    for (let y = 0; y < target.height; y++) {
+                        for (let x = 0; x < target.width; x++) {
+                            const i = (y * target.width + x) * 4;
+                            if (target.pixels[i+3] < 10) continue;
 
-                        target.loadPixels();
-                        p.textAlign(p.CENTER, p.CENTER);
-                        p.textSize(currentStep * 0.5);
-                        
-                        for (let y = 0; y < target.height; y++) {
-                            for (let x = 0; x < target.width; x++) {
-                                const i = (y * target.width + x) * 4;
-                                if (target.pixels[i+3] < 10) continue;
+                            // 色の一致判定
+                            if (target.pixels[i] === sr && target.pixels[i+1] === sg && target.pixels[i+2] === sb) {
+                                const dx = x * currentStep;
+                                const dy = y * currentStep;
 
-                                if (target.pixels[i] === sr && target.pixels[i+1] === sg && target.pixels[i+2] === sb) {
-                                    const dx = x * currentStep;
-                                    const dy = y * currentStep;
+                                // 🌟 2-C. 対象ドットを本来の色で浮き上がらせる
+                                p.fill(sr, sg, sb);
+                                p.noStroke();
+                                p.rect(dx, dy, currentStep, currentStep);
 
-                                    // 🌟 対象ドットだけ本来の色で再描画（これで暗闇から浮き上がる）
-                                    p.fill(sr, sg, sb);
-                                    p.noStroke();
-                                    p.rect(dx, dy, currentStep, currentStep);
+                                // 🌟 2-D. ハイライト枠を描画
+                                p.noFill();
+                                p.stroke('#00ffcc'); 
+                                p.strokeWeight(1);
+                                p.rect(dx, dy, currentStep, currentStep);
 
-                                    // 1. ハイライト枠
-                                    p.noFill();
-                                    p.stroke('#00ffcc'); 
-                                    p.strokeWeight(1);
-                                    p.rect(dx, dy, currentStep, currentStep);
-
-                                    // 2. 番号（Loc）
+                                // 🌟 2-E. 番号表示（マスターに存在する場合のみ）
+                                if (targetLoc && currentStep > 8) {
                                     const lum = 0.299*sr + 0.587*sg + 0.114*sb;
                                     p.fill(lum > 128 ? 0 : 255);
                                     p.noStroke(); 
@@ -218,17 +222,18 @@
                                 }
                             }
                         }
-                        p.pop();
                     }
+                    p.pop();
                 }
 
-                // --- 3. グリッドとガイド（そのまま維持） ---
+                // --- 3. グリッドとガイド（維持） ---
                 if (document.getElementById('px-gridline').checked) {
                     p.stroke(document.getElementById('px-gridline-color').value);
                     p.strokeWeight(parseInt(document.getElementById('px-gridline-w').value));
                     for (let x = 0; x <= target.width; x++) p.line(x * currentStep, 0, x * currentStep, target.height * currentStep);
                     for (let y = 0; y <= target.height; y++) p.line(0, y * currentStep, target.width * currentStep, y * currentStep);
                 }
+                
                 if (showGuide && typeof guideOrigin !== 'undefined') {
                     p.push();
                     p.textAlign(p.CENTER, p.CENTER); p.noStroke();
