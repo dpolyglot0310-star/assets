@@ -794,11 +794,21 @@
                 window.virtualCanvas = vCanvas; 
                 virtualCanvas = vCanvas; 
 
-                // 描画領域（キャンバスサイズ）の自動調整
-                const dScale = p.width / virtualCanvas.width;
-                const drawH = Math.floor(virtualCanvas.height * dScale);
-                if (p.height !== drawH) {
-                    p.resizeCanvas(p.width, drawH);
+                // --- 描画領域（キャンバスサイズ）の自動調整 ---
+                
+                // 1. 1ドットあたりの表示サイズを決定
+                // window.gridSize（元のドットサイズ）にズーム倍率をかける
+                const zoom = parseFloat(window.pxZoom) || 1.0; 
+                currentStep = (parseInt(window.gridSize) || 10) * zoom;
+
+                // 2. 「ドット数 × 1ドットの表示サイズ」で実寸の幅と高さを計算
+                const targetW = Math.floor(virtualCanvas.width * currentStep);
+                const targetH = Math.floor(virtualCanvas.height * currentStep);
+
+                // 3. 親要素の幅に合わせるのではなく、計算した実寸でリサイズ
+                // これにより、targetW が親要素（.px-canvas-wrap）より大きければ横スクロールが出ます
+                if (p.width !== targetW || p.height !== targetH) {
+                    p.resizeCanvas(targetW, targetH);
                 }
 
                 // --- 6. UI更新と再描画 ---
