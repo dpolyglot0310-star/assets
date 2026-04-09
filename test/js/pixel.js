@@ -1498,8 +1498,9 @@
     function initMasterPresetTable() {
         const container = document.getElementById('px-preset-table');
         container.innerHTML = '';
+        // activeMasterColors.clear(); // Setを使っている場合はここで初期化
 
-        // --- 1. 全体操作エリア（ここは「強制同期」用） ---
+        // --- 1. 全体操作エリア ---
         const allOpDiv = document.createElement('div');
         allOpDiv.style.cssText = 'display:flex; gap:10px; padding:8px; background:#1a1a1a; border-bottom:1px solid #444; margin-bottom:10px; position:sticky; top:0; z-index:20;';
         
@@ -1507,10 +1508,7 @@
         btnAllOn.textContent = 'ALL ON';
         btnAllOn.style.flex = '1';
         btnAllOn.onclick = () => {
-            // 全ての親と子のチェックを強制的に入れる
-            container.querySelectorAll('input[type="checkbox"]').forEach(c => {
-                c.checked = true;
-            });
+            container.querySelectorAll('input[type="checkbox"]').forEach(c => c.checked = true);
             pxUpdate();
         };
 
@@ -1518,10 +1516,7 @@
         btnAllOff.textContent = 'ALL OFF';
         btnAllOff.style.flex = '1';
         btnAllOff.onclick = () => {
-            // 全ての親と子のチェックを強制的に外す
-            container.querySelectorAll('input[type="checkbox"]').forEach(c => {
-                c.checked = false;
-            });
+            container.querySelectorAll('input[type="checkbox"]').forEach(c => c.checked = false);
             pxUpdate();
         };
 
@@ -1535,19 +1530,36 @@
             groupDiv.className = 'px-preset-group';
             groupDiv.style.marginBottom = '8px';
 
-            const header = document.createElement('label');
-            header.style.cssText = 'display:flex; align-items:center; background:#2a2a2a; padding:4px 6px; font-size:11px; color:#00ffcc; cursor:pointer;';
+            // ヘッダーを div にして、親チェックと一括リンクを並べる
+            const header = document.createElement('div');
+            header.style.cssText = 'display:flex; align-items:center; background:#2a2a2a; padding:4px 6px; font-size:11px; color:#00ffcc; justify-content:space-between;';
 
+            // 左側：親チェックボックス
+            const leftSide = document.createElement('label');
+            leftSide.style.cssText = 'display:flex; align-items:center; cursor:pointer;';
             const groupCb = document.createElement('input');
             groupCb.type = 'checkbox';
             groupCb.className = 'group-master-check';
             groupCb.checked = true;
-            
-            // 🌟 ここがポイント：親を動かしても子には干渉せず、再描画だけする
             groupCb.onchange = () => pxUpdate();
 
-            header.appendChild(groupCb);
-            header.appendChild(document.createTextNode(` ${groupName}`));
+            leftSide.appendChild(groupCb);
+            leftSide.appendChild(document.createTextNode(` ${groupName}`));
+            header.appendChild(leftSide);
+
+            // 右側：🌟 グループ内一括操作リンク (ここを追加しました)
+            const groupLinks = document.createElement('div');
+            const gOn = document.createElement('span');
+            gOn.textContent = '[ON]';
+            gOn.style.cssText = 'cursor:pointer; font-size:9px; color:#fff; margin-left:8px; text-decoration:underline;';
+            const gOff = document.createElement('span');
+            gOff.textContent = '[OFF]';
+            gOff.style.cssText = 'cursor:pointer; font-size:9px; color:#fff; margin-left:5px; text-decoration:underline;';
+            
+            groupLinks.appendChild(gOn);
+            groupLinks.appendChild(gOff);
+            header.appendChild(groupLinks);
+            
             groupDiv.appendChild(header);
 
             const childGrid = document.createElement('div');
@@ -1562,9 +1574,7 @@
                 cb.type = 'checkbox';
                 cb.className = 'child-color-check';
                 cb.checked = true;
-                cb.dataset.rgb = rgbKey;
-                
-                // 🌟 子を動かしても親には干渉しない
+                cb.dataset.rgb = rgbKey; // 🌟 減色計算に必須
                 cb.onchange = () => pxUpdate();
 
                 const chip = document.createElement('div');
@@ -1575,6 +1585,18 @@
                 item.appendChild(document.createTextNode(rgbKey));
                 childGrid.appendChild(item);
             });
+
+            // 🌟 グループ一括リンクのロジック
+            gOn.onclick = () => {
+                childGrid.querySelectorAll('input').forEach(c => c.checked = true);
+                groupCb.checked = true; // ついでに親もONにする
+                pxUpdate();
+            };
+            gOff.onclick = () => {
+                childGrid.querySelectorAll('input').forEach(c => c.checked = false);
+                // 親はOFFにせずそのままにする（親ON・子全OFFで「実質OFF」になるため、あるいは親もOFFにしてもOK）
+                pxUpdate();
+            };
 
             groupDiv.appendChild(childGrid);
             container.appendChild(groupDiv);
