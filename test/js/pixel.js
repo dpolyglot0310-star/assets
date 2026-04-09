@@ -1498,9 +1498,8 @@
     function initMasterPresetTable() {
         const container = document.getElementById('px-preset-table');
         container.innerHTML = '';
-        // activeMasterColors.clear(); // Setを使っている場合はここで初期化
 
-        // --- 1. 全体操作エリア ---
+        // --- 1. 全体操作エリア（ALL ON / ALL OFF） ---
         const allOpDiv = document.createElement('div');
         allOpDiv.style.cssText = 'display:flex; gap:10px; padding:8px; background:#1a1a1a; border-bottom:1px solid #444; margin-bottom:10px; position:sticky; top:0; z-index:20;';
         
@@ -1526,37 +1525,83 @@
 
         // --- 2. 各グループの生成 ---
         Object.entries(gameMasterPalette).forEach(([groupName, colors], groupIdx) => {
-            // ... (ヘッダー生成などはそのまま) ...
+            const groupDiv = document.createElement('div');
+            groupDiv.className = 'px-preset-group';
+            groupDiv.style.marginBottom = '8px';
+
+            // グループヘッダー（親チェック ＋ 一括リンク）
+            const header = document.createElement('div');
+            header.style.cssText = 'display:flex; align-items:center; background:#2a2a2a; padding:4px 6px; font-size:11px; color:#00ffcc; justify-content:space-between;';
+
+            // 左側：親チェックボックス ＋ グループ名
+            const leftSide = document.createElement('label');
+            leftSide.style.cssText = 'display:flex; align-items:center; cursor:pointer; flex:1;';
+            const groupCb = document.createElement('input');
+            groupCb.type = 'checkbox';
+            groupCb.className = 'group-master-check';
+            groupCb.checked = true;
+            groupCb.onchange = () => pxUpdate();
+
+            leftSide.appendChild(groupCb);
+            leftSide.appendChild(document.createTextNode(` ${groupName}`));
+            header.appendChild(leftSide);
+
+            // 右側：グループ内一括操作リンク
+            const groupLinks = document.createElement('div');
+            const gOn = document.createElement('span');
+            gOn.textContent = '[ON]';
+            gOn.style.cssText = 'cursor:pointer; font-size:9px; color:#fff; margin-left:8px; text-decoration:underline;';
+            const gOff = document.createElement('span');
+            gOff.textContent = '[OFF]';
+            gOff.style.cssText = 'cursor:pointer; font-size:9px; color:#fff; margin-left:5px; text-decoration:underline;';
+            
+            groupLinks.appendChild(gOn);
+            groupLinks.appendChild(gOff);
+            header.appendChild(groupLinks);
+            groupDiv.appendChild(header);
+
+            // 子（カラー）グリッド
+            const childGrid = document.createElement('div');
+            childGrid.style.cssText = 'display:grid; grid-template-columns:repeat(2,1fr); gap:3px; padding:6px; background:#222;';
 
             colors.forEach((rgb, childIdx) => {
                 const rgbKey = rgb.join(',');
                 const item = document.createElement('label');
-                item.style.cssText = 'display:flex; align-items:center; font-size:10px; cursor:pointer; position:relative; margin-bottom:2px;';
+                item.style.cssText = 'display:flex; align-items:center; font-size:10px; cursor:pointer; margin-bottom:1px;';
 
                 const cb = document.createElement('input');
                 cb.type = 'checkbox';
                 cb.className = 'child-color-check';
                 cb.checked = true;
                 cb.dataset.rgb = rgbKey;
-                cb.dataset.location = `${groupIdx}-${childIdx}`; // データとしても保持
                 cb.onchange = () => pxUpdate();
 
-                // 🌟 番号表示用のスパンを追加
+                // 🌟 番号表示 (インデックス)
                 const numSpan = document.createElement('span');
                 numSpan.textContent = `${groupIdx}-${childIdx}`;
-                numSpan.style.cssText = 'min-width:24px; color:#888; font-size:9px; margin-right:4px; font-family:monospace; text-align:right;';
+                numSpan.style.cssText = 'min-width:24px; color:#888; font-size:9px; margin:0 4px; font-family:monospace; text-align:right;';
 
                 const chip = document.createElement('div');
-                chip.style.cssText = `width:12px; height:12px; background:rgb(${rgbKey}); margin:0 4px; border:1px solid #555; flex-shrink:0;`;
+                chip.style.cssText = `width:12px; height:12px; background:rgb(${rgbKey}); margin-right:4px; border:1px solid #555; flex-shrink:0;`;
 
-                // 組み立て順： [チェック] [番号] [チップ] [RGBテキスト]
+                // レイアウト順に組み立て
                 item.appendChild(cb);
-                item.appendChild(numSpan); // 🌟 ここで番号を挿入
+                item.appendChild(numSpan);
                 item.appendChild(chip);
                 item.appendChild(document.createTextNode(rgbKey));
-                
                 childGrid.appendChild(item);
             });
+
+            // グループ一括リンクの動作
+            gOn.onclick = () => {
+                childGrid.querySelectorAll('input').forEach(c => c.checked = true);
+                groupCb.checked = true;
+                pxUpdate();
+            };
+            gOff.onclick = () => {
+                childGrid.querySelectorAll('input').forEach(c => c.checked = false);
+                pxUpdate();
+            };
 
             groupDiv.appendChild(childGrid);
             container.appendChild(groupDiv);
