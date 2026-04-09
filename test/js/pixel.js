@@ -1360,7 +1360,26 @@
             `;
 
             // クリックイベント（pixelAppが未定義でも壊れないようにガード）
-            inner.querySelector('.px-box').onclick = () => { if(window.pixelApp) pixelApp.highlight(hv); };
+            inner.querySelector('.px-box').onclick = () => {
+                // 1. window.selectedHex のトグル（オンオフ）
+                if (window.selectedHex === hv) {
+                    window.selectedHex = null; // すでに選択中なら解除
+                } else {
+                    window.selectedHex = hv;  // 新しく選択
+                }
+
+                // 2. p5inst に再描画を命令（これでハイライトや減光が走る）
+                if (window.p5inst) {
+                    window.p5inst.redraw();
+                }
+
+                // 3. パレット自体の見た目（activeクラスなど）を更新するために再描画
+                // ※ renderPxPalette 自体を現在の状態でもう一度呼ぶか、
+                // 全体を更新する pxUpdate() を実行してください。
+                if (typeof pxUpdate === 'function') {
+                    pxUpdate(); 
+                }
+            };
             inner.querySelector('input[type="color"]').oninput = e => { if(window.pixelApp) pixelApp.swap(hv, e.target.value); };
             
             const rb = inner.querySelector('.px-reset');
