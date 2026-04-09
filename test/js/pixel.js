@@ -164,8 +164,7 @@
                 p.noSmooth();
                 p.image(target, 0, 0, target.width * currentStep, target.height * currentStep);
 
-                // --- 2. 番号（Loc）の表示 ---
-                // 選択中の色がマスターのどこにあるか探して描画
+                // --- 2. 番号（Loc）とハイライトの表示 ---
                 if (selectedHex && currentStep > 8) {
                     const masterNodes = document.querySelectorAll(`#px-preset-table input[data-rgb]`);
                     const selC = p.color(selectedHex);
@@ -174,6 +173,7 @@
                     let targetLoc = "";
                     for (const input of masterNodes) {
                         const rgb = input.dataset.rgb.split(',').map(Number);
+                        // マスターの色と選択色が一致するか判定
                         if (Math.abs(rgb[0]-sr) + Math.abs(rgb[1]-sg) + Math.abs(rgb[2]-sb) < 10) {
                             targetLoc = input.dataset.location;
                             break;
@@ -182,18 +182,33 @@
 
                     if (targetLoc) {
                         p.push();
+                        target.loadPixels();
+                        
+                        // 描画設定
                         p.textAlign(p.CENTER, p.CENTER);
                         p.textSize(currentStep * 0.5);
-                        target.loadPixels();
+                        
                         for (let y = 0; y < target.height; y++) {
                             for (let x = 0; x < target.width; x++) {
                                 const i = (y * target.width + x) * 4;
                                 if (target.pixels[i+3] < 10) continue;
-                                // 厳密に一致するものだけ番号を出す
+
+                                // 選択中の色とドットの色が一致するか
                                 if (target.pixels[i] === sr && target.pixels[i+1] === sg && target.pixels[i+2] === sb) {
+                                    const dx = x * currentStep;
+                                    const dy = y * currentStep;
+
+                                    // 🌟 1. ハイライト枠の描画 (番号の前に描く)
+                                    p.noFill();
+                                    p.stroke('#00ffcc'); // 視認性の高いネオンカラー
+                                    p.strokeWeight(1);
+                                    p.rect(dx, dy, currentStep, currentStep);
+
+                                    // 🌟 2. 番号（Loc）の描画
                                     const lum = 0.299*sr + 0.587*sg + 0.114*sb;
                                     p.fill(lum > 128 ? 0 : 255);
-                                    p.text(targetLoc, x * currentStep + currentStep/2, y * currentStep + currentStep/2);
+                                    p.noStroke(); // テキストに枠線がつかないように
+                                    p.text(targetLoc, dx + currentStep/2, dy + currentStep/2);
                                 }
                             }
                         }
