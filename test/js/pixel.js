@@ -1508,9 +1508,7 @@
         btnAllOn.textContent = 'ALL SELECT';
         btnAllOn.style.flex = '1';
         btnAllOn.onclick = () => {
-            container.querySelectorAll('input[type="checkbox"]').forEach(c => {
-                if(!c.checked) { c.checked = true; }
-            });
+            container.querySelectorAll('input[type="checkbox"]').forEach(c => c.checked = true);
             pxUpdate();
         };
 
@@ -1518,9 +1516,7 @@
         btnAllOff.textContent = 'ALL DESELECT';
         btnAllOff.style.flex = '1';
         btnAllOff.onclick = () => {
-            container.querySelectorAll('input[type="checkbox"]').forEach(c => {
-                if(c.checked) { c.checked = false; }
-            });
+            container.querySelectorAll('input[type="checkbox"]').forEach(c => c.checked = false);
             pxUpdate();
         };
 
@@ -1536,23 +1532,25 @@
             const header = document.createElement('div');
             header.style.cssText = 'display:flex; align-items:center; background:#2a2a2a; padding:4px 6px; font-size:11px; color:#00ffcc; justify-content:space-between; border-radius:4px 4px 0 0;';
 
-            // グループ名ラベル
-            const groupTitleSide = document.createElement('span');
-            groupTitleSide.style.cssText = 'font-weight:bold;';
-            groupTitleSide.appendChild(document.createTextNode(groupName));
+            // 🌟 グループ親チェックボックス ＋ グループ名
+            const groupTitleSide = document.createElement('label');
+            groupTitleSide.style.cssText = 'display:flex; align-items:center; cursor:pointer; flex:1;';
+            const groupCb = document.createElement('input');
+            groupCb.type = 'checkbox';
+            groupCb.checked = true;
+            groupTitleSide.appendChild(groupCb);
+            groupTitleSide.appendChild(document.createTextNode(` ${groupName}`));
             header.appendChild(groupTitleSide);
 
-            // 🌟 グループ内一括操作用のリンク（これが使いやすかったやつですね！）
+            // 🌟 グループ内一括操作用のリンク（細かい指定に便利）
             const groupLinks = document.createElement('div');
             groupLinks.style.cssText = 'display:flex; gap:8px;';
-            
             const gOn = document.createElement('span');
             gOn.textContent = '[ON]';
-            gOn.style.cssText = 'cursor:pointer; font-size:10px; color:#fff; text-decoration:underline; font-weight:normal;';
-            
+            gOn.style.cssText = 'cursor:pointer; font-size:9px; color:#fff; text-decoration:underline;';
             const gOff = document.createElement('span');
             gOff.textContent = '[OFF]';
-            gOff.style.cssText = 'cursor:pointer; font-size:10px; color:#fff; text-decoration:underline; font-weight:normal;';
+            gOff.style.cssText = 'cursor:pointer; font-size:9px; color:#fff; text-decoration:underline;';
             
             groupLinks.appendChild(gOn);
             groupLinks.appendChild(gOff);
@@ -1573,7 +1571,7 @@
                 cb.type = 'checkbox';
                 cb.checked = true;
                 cb.dataset.rgb = rgbKey;
-                cb.className = 'child-color-check'; // 判定用
+                cb.dataset.location = `${groupIdx}-${childIdx}`;
 
                 const chip = document.createElement('div');
                 chip.style.cssText = `width:12px; height:12px; background:rgb(${rgbKey}); margin:0 4px; border:1px solid #555;`;
@@ -1586,20 +1584,25 @@
                 cb.onchange = () => pxUpdate();
             });
 
-            // 🌟 グループ一括操作のロジック
+            // 🌟 ロジック：親チェックが動いたときは、子には干渉せず再描画（独立動作）
+            groupCb.onchange = () => pxUpdate();
+
+            // 🌟 ロジック：一括リンクは強制的に子を書き換える
             gOn.onclick = () => {
                 childGrid.querySelectorAll('input').forEach(ccb => ccb.checked = true);
+                groupCb.checked = true;
                 pxUpdate();
             };
             gOff.onclick = () => {
                 childGrid.querySelectorAll('input').forEach(ccb => ccb.checked = false);
+                groupCb.checked = false;
                 pxUpdate();
             };
 
             groupDiv.appendChild(childGrid);
             container.appendChild(groupDiv);
         });
-    }    // 初期化実行
+    }// 初期化実行
     initMasterPresetTable();
 
     // --- HTML要素とJS変数の同期設定 ---
