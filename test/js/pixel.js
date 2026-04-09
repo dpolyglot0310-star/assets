@@ -1498,29 +1498,28 @@
     function initMasterPresetTable() {
         const container = document.getElementById('px-preset-table');
         container.innerHTML = '';
+        activeMasterColors.clear();
 
-        // --- 1. 全体操作エリア（ここは「強制同期」用） ---
+        // --- 1. 全体操作 (Global All) ---
         const allOpDiv = document.createElement('div');
         allOpDiv.style.cssText = 'display:flex; gap:10px; padding:8px; background:#1a1a1a; border-bottom:1px solid #444; margin-bottom:10px; position:sticky; top:0; z-index:20;';
         
         const btnAllOn = document.createElement('button');
-        btnAllOn.textContent = 'ALL ON';
+        btnAllOn.textContent = 'ALL SELECT';
         btnAllOn.style.flex = '1';
         btnAllOn.onclick = () => {
-            // 全ての親と子のチェックを強制的に入れる
             container.querySelectorAll('input[type="checkbox"]').forEach(c => {
-                c.checked = true;
+                if(!c.checked) { c.checked = true; }
             });
             pxUpdate();
         };
 
         const btnAllOff = document.createElement('button');
-        btnAllOff.textContent = 'ALL OFF';
+        btnAllOff.textContent = 'ALL DESELECT';
         btnAllOff.style.flex = '1';
         btnAllOff.onclick = () => {
-            // 全ての親と子のチェックを強制的に外す
             container.querySelectorAll('input[type="checkbox"]').forEach(c => {
-                c.checked = false;
+                if(c.checked) { c.checked = false; }
             });
             pxUpdate();
         };
@@ -1532,40 +1531,49 @@
         // --- 2. 各グループの生成 ---
         Object.entries(gameMasterPalette).forEach(([groupName, colors], groupIdx) => {
             const groupDiv = document.createElement('div');
-            groupDiv.className = 'px-preset-group';
             groupDiv.style.marginBottom = '8px';
 
-            const header = document.createElement('label');
-            header.style.cssText = 'display:flex; align-items:center; background:#2a2a2a; padding:4px 6px; font-size:11px; color:#00ffcc; cursor:pointer;';
+            const header = document.createElement('div');
+            header.style.cssText = 'display:flex; align-items:center; background:#2a2a2a; padding:4px 6px; font-size:11px; color:#00ffcc; justify-content:space-between; border-radius:4px 4px 0 0;';
 
-            const groupCb = document.createElement('input');
-            groupCb.type = 'checkbox';
-            groupCb.className = 'group-master-check';
-            groupCb.checked = true;
+            // グループ名ラベル
+            const groupTitleSide = document.createElement('span');
+            groupTitleSide.style.cssText = 'font-weight:bold;';
+            groupTitleSide.appendChild(document.createTextNode(groupName));
+            header.appendChild(groupTitleSide);
+
+            // 🌟 グループ内一括操作用のリンク（これが使いやすかったやつですね！）
+            const groupLinks = document.createElement('div');
+            groupLinks.style.cssText = 'display:flex; gap:8px;';
             
-            // 🌟 ここがポイント：親を動かしても子には干渉せず、再描画だけする
-            groupCb.onchange = () => pxUpdate();
-
-            header.appendChild(groupCb);
-            header.appendChild(document.createTextNode(` ${groupName}`));
+            const gOn = document.createElement('span');
+            gOn.textContent = '[ON]';
+            gOn.style.cssText = 'cursor:pointer; font-size:10px; color:#fff; text-decoration:underline; font-weight:normal;';
+            
+            const gOff = document.createElement('span');
+            gOff.textContent = '[OFF]';
+            gOff.style.cssText = 'cursor:pointer; font-size:10px; color:#fff; text-decoration:underline; font-weight:normal;';
+            
+            groupLinks.appendChild(gOn);
+            groupLinks.appendChild(gOff);
+            header.appendChild(groupLinks);
             groupDiv.appendChild(header);
 
             const childGrid = document.createElement('div');
-            childGrid.style.cssText = 'display:grid; grid-template-columns:repeat(2,1fr); gap:3px; padding:6px; background:#222;';
+            childGrid.style.cssText = 'display:grid; grid-template-columns:repeat(2,1fr); gap:3px; padding:6px; background:#222; border-radius:0 0 4px 4px;';
 
             colors.forEach((rgb, childIdx) => {
                 const rgbKey = rgb.join(',');
+                activeMasterColors.add(rgbKey);
+
                 const item = document.createElement('label');
                 item.style.cssText = 'display:flex; align-items:center; font-size:10px; cursor:pointer;';
 
                 const cb = document.createElement('input');
                 cb.type = 'checkbox';
-                cb.className = 'child-color-check';
                 cb.checked = true;
                 cb.dataset.rgb = rgbKey;
-                
-                // 🌟 子を動かしても親には干渉しない
-                cb.onchange = () => pxUpdate();
+                cb.className = 'child-color-check'; // 判定用
 
                 const chip = document.createElement('div');
                 chip.style.cssText = `width:12px; height:12px; background:rgb(${rgbKey}); margin:0 4px; border:1px solid #555;`;
@@ -1574,13 +1582,24 @@
                 item.appendChild(chip);
                 item.appendChild(document.createTextNode(rgbKey));
                 childGrid.appendChild(item);
+
+                cb.onchange = () => pxUpdate();
             });
+
+            // 🌟 グループ一括操作のロジック
+            gOn.onclick = () => {
+                childGrid.querySelectorAll('input').forEach(ccb => ccb.checked = true);
+                pxUpdate();
+            };
+            gOff.onclick = () => {
+                childGrid.querySelectorAll('input').forEach(ccb => ccb.checked = false);
+                pxUpdate();
+            };
 
             groupDiv.appendChild(childGrid);
             container.appendChild(groupDiv);
         });
-    }
-    // 初期化実行
+    }    // 初期化実行
     initMasterPresetTable();
 
     // --- HTML要素とJS変数の同期設定 ---
