@@ -744,31 +744,43 @@
                 if (!currentRawMode && currentUseQuant) {
                     if (currentMethod === 'preset') {
                         const masterPalettes = [];
-                        // クラス名ではなく、階層構造で直接取得する
-                        const groups = document.querySelectorAll('#px-preset-table > div'); // 各グループのdiv
-                        
-                        groups.forEach(group => {
-                            // グループの先頭にある親チェックボックス（一番最初のinput）
-                            const groupCb = group.querySelector('input[type="checkbox"]');
+                            const groups = document.querySelectorAll('.px-preset-group');
                             
-                            if (groupCb && groupCb.checked) {
-                                // そのグループ内にある、色のデータ(data-rgb)を持ったチェックされている子を探す
-                                const childCbs = group.querySelectorAll('input[data-rgb]:checked');
-                                childCbs.forEach(cb => {
-                                    masterPalettes.push(cb.dataset.rgb.split(',').map(Number));
-                                });
-                            }
-                        });
-
-                        // 🌟 デバッグ用：ここでコンソールを確認
-                        // console.log("有効な色数:", masterPalettes.length);
+                            groups.forEach(group => {
+                                const groupCb = group.querySelector('.group-master-check');
+                                // 親がONのときだけ、その中のチェックされた子を探す
+                                if (groupCb && groupCb.checked) {
+                                    const childCbs = group.querySelectorAll('.child-color-check:checked');
+                                    childCbs.forEach(cb => {
+                                        masterPalettes.push(cb.dataset.rgb.split(',').map(Number));
+                                    });
+                                }
+                            });
 
                         if (masterPalettes.length > 0) {
-                            // ...（最短距離計算のループ）...
-                        } else {
-                            // 色が0個のときは、真っ白にならないよう処理を抜けるか、
-                            // canvasをクリアするなどの処理を入れる
-                            return; 
+                            colorCache.clear();
+
+                            for (let i = 0; i < buf.length; i += 4) {
+                                if (buf[i + 3] < 10) continue;
+                                
+                                const key = `${buf[i]},${buf[i+1]},${buf[i+2]}`;
+                                
+                                if (!colorCache.has(key)) {
+                                    let minD = Infinity;
+                                    let closest = masterPalettes[0];
+                                    for (const m of masterPalettes) {
+                                        // 二乗誤差で最も近い「有効な（チェック済みの）」色を探す
+                                        const d = Math.pow(buf[i]-m[0],2) + Math.pow(buf[i+1]-m[1],2) + Math.pow(buf[i+2]-m[2],2);
+                                        if (d < minD) { minD = d; closest = m; }
+                                    }
+                                    colorCache.set(key, closest);
+                                }
+
+                                const finalColor = colorCache.get(key);
+                                buf[i] = finalColor[0];
+                                buf[i+1] = finalColor[1];
+                                buf[i+2] = finalColor[2];
+                            }
                         }
                     }else if (currentMethod === 'kmeans') {
                         kmeansQuantize(buf, cols, rows, currentStep, currentUseDither);
@@ -1486,25 +1498,30 @@
     function initMasterPresetTable() {
         const container = document.getElementById('px-preset-table');
         container.innerHTML = '';
-        activeMasterColors.clear();
 
-        // --- 1. 全体操作 (Global All) ---
+        // --- 1. 全体操作エリア（ここは「強制同期」用） ---
         const allOpDiv = document.createElement('div');
         allOpDiv.style.cssText = 'display:flex; gap:10px; padding:8px; background:#1a1a1a; border-bottom:1px solid #444; margin-bottom:10px; position:sticky; top:0; z-index:20;';
         
         const btnAllOn = document.createElement('button');
-        btnAllOn.textContent = 'ALL SELECT';
+        btnAllOn.textContent = 'ALL ON';
         btnAllOn.style.flex = '1';
         btnAllOn.onclick = () => {
-            container.querySelectorAll('input[type="checkbox"]').forEach(c => c.checked = true);
+            // 全ての親と子のチェックを強制的に入れる
+            container.querySelectorAll('input[type="checkbox"]').forEach(c => {
+                c.checked = true;
+            });
             pxUpdate();
         };
 
         const btnAllOff = document.createElement('button');
-        btnAllOff.textContent = 'ALL DESELECT';
+        btnAllOff.textContent = 'ALL OFF';
         btnAllOff.style.flex = '1';
         btnAllOff.onclick = () => {
-            container.querySelectorAll('input[type="checkbox"]').forEach(c => c.checked = false);
+            // 全ての親と子のチェックを強制的に外す
+            container.querySelectorAll('input[type="checkbox"]').forEach(c => {
+                c.checked = false;
+            });
             pxUpdate();
         };
 
@@ -1515,51 +1532,40 @@
         // --- 2. 各グループの生成 ---
         Object.entries(gameMasterPalette).forEach(([groupName, colors], groupIdx) => {
             const groupDiv = document.createElement('div');
+            groupDiv.className = 'px-preset-group';
             groupDiv.style.marginBottom = '8px';
 
-            const header = document.createElement('div');
-            header.style.cssText = 'display:flex; align-items:center; background:#2a2a2a; padding:4px 6px; font-size:11px; color:#00ffcc; justify-content:space-between; border-radius:4px 4px 0 0;';
+            const header = document.createElement('label');
+            header.style.cssText = 'display:flex; align-items:center; background:#2a2a2a; padding:4px 6px; font-size:11px; color:#00ffcc; cursor:pointer;';
 
-            // 🌟 グループ親チェックボックス ＋ グループ名
-            const groupTitleSide = document.createElement('label');
-            groupTitleSide.style.cssText = 'display:flex; align-items:center; cursor:pointer; flex:1;';
             const groupCb = document.createElement('input');
             groupCb.type = 'checkbox';
+            groupCb.className = 'group-master-check';
             groupCb.checked = true;
-            groupTitleSide.appendChild(groupCb);
-            groupTitleSide.appendChild(document.createTextNode(` ${groupName}`));
-            header.appendChild(groupTitleSide);
-
-            // 🌟 グループ内一括操作用のリンク（細かい指定に便利）
-            const groupLinks = document.createElement('div');
-            groupLinks.style.cssText = 'display:flex; gap:8px;';
-            const gOn = document.createElement('span');
-            gOn.textContent = '[ON]';
-            gOn.style.cssText = 'cursor:pointer; font-size:9px; color:#fff; text-decoration:underline;';
-            const gOff = document.createElement('span');
-            gOff.textContent = '[OFF]';
-            gOff.style.cssText = 'cursor:pointer; font-size:9px; color:#fff; text-decoration:underline;';
             
-            groupLinks.appendChild(gOn);
-            groupLinks.appendChild(gOff);
-            header.appendChild(groupLinks);
+            // 🌟 ここがポイント：親を動かしても子には干渉せず、再描画だけする
+            groupCb.onchange = () => pxUpdate();
+
+            header.appendChild(groupCb);
+            header.appendChild(document.createTextNode(` ${groupName}`));
             groupDiv.appendChild(header);
 
             const childGrid = document.createElement('div');
-            childGrid.style.cssText = 'display:grid; grid-template-columns:repeat(2,1fr); gap:3px; padding:6px; background:#222; border-radius:0 0 4px 4px;';
+            childGrid.style.cssText = 'display:grid; grid-template-columns:repeat(2,1fr); gap:3px; padding:6px; background:#222;';
 
             colors.forEach((rgb, childIdx) => {
                 const rgbKey = rgb.join(',');
-                activeMasterColors.add(rgbKey);
-
                 const item = document.createElement('label');
                 item.style.cssText = 'display:flex; align-items:center; font-size:10px; cursor:pointer;';
 
                 const cb = document.createElement('input');
                 cb.type = 'checkbox';
+                cb.className = 'child-color-check';
                 cb.checked = true;
                 cb.dataset.rgb = rgbKey;
-                cb.dataset.location = `${groupIdx}-${childIdx}`;
+                
+                // 🌟 子を動かしても親には干渉しない
+                cb.onchange = () => pxUpdate();
 
                 const chip = document.createElement('div');
                 chip.style.cssText = `width:12px; height:12px; background:rgb(${rgbKey}); margin:0 4px; border:1px solid #555;`;
@@ -1568,29 +1574,13 @@
                 item.appendChild(chip);
                 item.appendChild(document.createTextNode(rgbKey));
                 childGrid.appendChild(item);
-
-                cb.onchange = () => pxUpdate();
             });
-
-            // 🌟 ロジック：親チェックが動いたときは、子には干渉せず再描画（独立動作）
-            groupCb.onchange = () => pxUpdate();
-
-            // 🌟 ロジック：一括リンクは強制的に子を書き換える
-            gOn.onclick = () => {
-                childGrid.querySelectorAll('input').forEach(ccb => ccb.checked = true);
-                groupCb.checked = true;
-                pxUpdate();
-            };
-            gOff.onclick = () => {
-                childGrid.querySelectorAll('input').forEach(ccb => ccb.checked = false);
-                groupCb.checked = false;
-                pxUpdate();
-            };
 
             groupDiv.appendChild(childGrid);
             container.appendChild(groupDiv);
         });
-    }// 初期化実行
+    }
+    // 初期化実行
     initMasterPresetTable();
 
     // --- HTML要素とJS変数の同期設定 ---
