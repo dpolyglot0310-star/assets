@@ -728,6 +728,14 @@
     "url": "https://api.github.com/repos/dpolyglot0310-star/assets/git/blobs/050dd26ac339f778dcd0798c8a0acb100171b233"
   },
   {
+    "path": "assets/98_season/99_work/no_work.png",
+    "mode": "100644",
+    "type": "blob",
+    "sha": "6de46d70281f5f9846dd99d1b66b4c4cb8c94eac",
+    "size": 2642,
+    "url": "https://api.github.com/repos/dpolyglot0310-star/assets/git/blobs/6de46d70281f5f9846dd99d1b66b4c4cb8c94eac"
+  },
+  {
     "path": "assets/999_base/shirt_uv_m.png",
     "mode": "100644",
     "type": "blob",
