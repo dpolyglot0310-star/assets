@@ -160,11 +160,11 @@
                 const bgColor = document.getElementById('px-bg').value;
                 const selectedHex = window.selectedHex;
 
-                // --- 1. ドット絵本体の描画（計算は済んでいる前提） ---
+                // --- 1. ドット絵本体の描画 ---
                 p.noSmooth();
                 p.image(target, 0, 0, target.width * currentStep, target.height * currentStep);
 
-                // --- 2. 番号（Loc）とハイライトの表示 ---
+                // --- 2. 番号（Loc）とハイライト、および減光処理 ---
                 if (selectedHex && currentStep > 8) {
                     const masterNodes = document.querySelectorAll(`#px-preset-table input[data-rgb]`);
                     const selC = p.color(selectedHex);
@@ -173,7 +173,6 @@
                     let targetLoc = "";
                     for (const input of masterNodes) {
                         const rgb = input.dataset.rgb.split(',').map(Number);
-                        // マスターの色と選択色が一致するか判定
                         if (Math.abs(rgb[0]-sr) + Math.abs(rgb[1]-sg) + Math.abs(rgb[2]-sb) < 10) {
                             targetLoc = input.dataset.location;
                             break;
@@ -182,9 +181,12 @@
 
                     if (targetLoc) {
                         p.push();
+                        // 🌟 【新機能】選択色以外を少し暗くする（ディム効果）
+                        p.noStroke();
+                        p.fill(0, 140); // 140/255 の透明度で全体を暗く
+                        p.rect(0, 0, target.width * currentStep, target.height * currentStep);
+
                         target.loadPixels();
-                        
-                        // 描画設定
                         p.textAlign(p.CENTER, p.CENTER);
                         p.textSize(currentStep * 0.5);
                         
@@ -193,21 +195,25 @@
                                 const i = (y * target.width + x) * 4;
                                 if (target.pixels[i+3] < 10) continue;
 
-                                // 選択中の色とドットの色が一致するか
                                 if (target.pixels[i] === sr && target.pixels[i+1] === sg && target.pixels[i+2] === sb) {
                                     const dx = x * currentStep;
                                     const dy = y * currentStep;
 
-                                    // 🌟 1. ハイライト枠の描画 (番号の前に描く)
+                                    // 🌟 対象ドットだけ本来の色で再描画（これで暗闇から浮き上がる）
+                                    p.fill(sr, sg, sb);
+                                    p.noStroke();
+                                    p.rect(dx, dy, currentStep, currentStep);
+
+                                    // 1. ハイライト枠
                                     p.noFill();
-                                    p.stroke('#00ffcc'); // 視認性の高いネオンカラー
+                                    p.stroke('#00ffcc'); 
                                     p.strokeWeight(1);
                                     p.rect(dx, dy, currentStep, currentStep);
 
-                                    // 🌟 2. 番号（Loc）の描画
+                                    // 2. 番号（Loc）
                                     const lum = 0.299*sr + 0.587*sg + 0.114*sb;
                                     p.fill(lum > 128 ? 0 : 255);
-                                    p.noStroke(); // テキストに枠線がつかないように
+                                    p.noStroke(); 
                                     p.text(targetLoc, dx + currentStep/2, dy + currentStep/2);
                                 }
                             }
@@ -216,7 +222,7 @@
                     }
                 }
 
-                // --- 3. グリッドとガイド（元のまま） ---
+                // --- 3. グリッドとガイド（そのまま維持） ---
                 if (document.getElementById('px-gridline').checked) {
                     p.stroke(document.getElementById('px-gridline-color').value);
                     p.strokeWeight(parseInt(document.getElementById('px-gridline-w').value));
