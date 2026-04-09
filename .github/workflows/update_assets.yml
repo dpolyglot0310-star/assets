@@ -18,25 +18,22 @@ jobs:
           node-version: '20'
 
       - name: Generate JSON
-        run: node scripts/generate-json.js # スキャン用JSを実行
+        run: |
+          node scripts/generate-json.js
+          # 🌟 ここで直接タイムスタンプを書き込む
+          date "+%Y-%m-%d %H:%M:%S" > assets/last_update.txt
 
       - name: Commit and Push
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           
-          # 1. 差分をステージング（list.jsonも含める）
+          # assets/ 以下の変更されたファイルをすべてステージング
           git add assets/list.json assets/last_update.txt
           
-          # 2. 差分があるかチェック
           if ! git diff --cached --quiet; then
             git commit -m "chore: update assets and timestamp"
-            
-            # 3. 【最重要】Push直前にリモートの最新を取り込む
-            # これで「不一致」を自動で解消して自分の更新を一番上に乗せます
             git pull --rebase origin main
-            
-            # 4. そしてPush
             git push origin main
           else
             echo "No changes to commit"
