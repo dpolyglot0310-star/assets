@@ -710,33 +710,75 @@
                     buf[i] = source.pixels[i];
                 }
 
-                // 4. 減色・量子化の実行
+                // --- 4. 減色・量子化の実行 ---
                 if (!currentRawMode && currentUseQuant) {
-                    if (currentMethod === 'kmeans') {
+                    if (currentMethod === 'preset') {
+                        // 🌟 プリセットモード時は、ここで「完全に」マスターの色で固定する
+                        const masterNodes = document.querySelectorAll(`#px-preset-table input[data-rgb]`);
+                        const masterPalettes = Array.from(masterNodes).map(input => input.dataset.rgb.split(',').map(Number));
+
+                        if (masterPalettes.length > 0) {
+                            for (let i = 0; i < buf.length; i += 4) {
+                                if (buf[i + 3] < 10) continue;
+                                
+                                const r = buf[i], g = buf[i+1], b = buf[i+2];
+                                let minD = Infinity;
+                                let closest = masterPalettes[0];
+
+                                for (const m of masterPalettes) {
+                                    const d = Math.pow(r - m[0], 2) + Math.pow(g - m[1], 2) + Math.pow(b - m[2], 2);
+                                    if (d < minD) { minD = d; closest = m; }
+                                }
+                                // bufを直接、マスターのRGBで上書き（誤差の入る余地を消す）
+                                buf[i] = closest[0];
+                                buf[i+1] = closest[1];
+                                buf[i+2] = closest[2];
+                            }
+                        }
+                    } else if (currentMethod === 'kmeans') {
                         kmeansQuantize(buf, cols, rows, currentStep, currentUseDither);
                     } else if (currentMethod === 'mediancut') {
                         medianCutQuantize(buf, cols, rows, currentStep, currentUseDither);
-                    } else if (currentMethod === 'preset') {
-                        // 🌟 ここ！ 
-                        // 外部関数 applyMasterPreset() を呼ぶか、中身を直接ここに書く
-                        applyPresetToBuffer(buf, cols, rows); 
                     } else {
                         applyStandardQuantize(buf, cols, rows, currentStep, currentUseDither);
                     }
                 }
 
-                // 5. 色置換(SwapMap)の適用と vCanvas への書き戻し
+                // --- 5. vCanvas への書き戻し ---
                 vCanvas.loadPixels();
-                usedPresetColors.clear(); 
+                usedPresetColors.clear();
 
                 for (let i = 0; i < buf.length; i += 4) {
                     let r = buf[i], g = buf[i+1], b = buf[i+2], a = buf[i+3];
-                    
-                    // 透明度10未満は描画しない（透明として扱う）
+
                     if (a < 10) {
                         vCanvas.pixels[i+3] = 0;
                         continue;
                     }
+
+                    // 🌟 修正ポイント：プリセットモードの時は swapMap（色置換）を無視して buf の値を直入れする
+                    if (currentMethod === 'preset') {
+                        vCanvas.pixels[i]   = r;
+                        vCanvas.pixels[i+1] = g;
+                        vCanvas.pixels[i+2] = b;
+                        vCanvas.pixels[i+3] = a;
+                    } else {
+                        // 通常モードの時は従来の swapMap 処理
+                        let hex = toHexStr(r, g, b);
+                        let finalHex = currentRawMode ? hex : (swapMap[hex] || hex);
+                        const fr = parseInt(finalHex.slice(1, 3), 16);
+                        const fg = parseInt(finalHex.slice(3, 5), 16);
+                        const fb = parseInt(finalHex.slice(5, 7), 16);
+                        vCanvas.pixels[i]   = fr;
+                        vCanvas.pixels[i+1] = fg;
+                        vCanvas.pixels[i+2] = fb;
+                        vCanvas.pixels[i+3] = a;
+                    }
+
+                    usedPresetColors.add(`${vCanvas.pixels[i]},${vCanvas.pixels[i+1]},${vCanvas.pixels[i+2]}`);
+                }
+                vCanvas.updatePixels();
+
 
                 // --- 6. UI（パレット等）の更新 ---
                 
