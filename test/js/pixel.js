@@ -743,21 +743,19 @@
                 // --- 4. 減色・量子化の実行 ---
                 if (!currentRawMode && currentUseQuant) {
                     if (currentMethod === 'preset') {
-                        const masterPalettes = [];
-                            const groups = document.querySelectorAll('.px-preset-group');
-                            
-                            groups.forEach(group => {
-                                const groupCb = group.querySelector('.group-master-check');
-                                // 親がONのときだけ、その中のチェックされた子を探す
-                                if (groupCb && groupCb.checked) {
-                                    const childCbs = group.querySelectorAll('.child-color-check:checked');
-                                    childCbs.forEach(cb => {
-                                        masterPalettes.push(cb.dataset.rgb.split(',').map(Number));
-                                    });
-                                }
-                            });
+                        // 🌟 修正ポイント：チェックが入っている input だけを取得するように変更
+                        const masterNodes = document.querySelectorAll(`#px-preset-table input[data-rgb]:checked`);
+                        
+                        // チェックされている色が一つもない場合のガード
+                        if (masterNodes.length === 0) {
+                            console.log("選択されているマスターカラーがありません");
+                            return; 
+                        }
+
+                        const masterPalettes = Array.from(masterNodes).map(input => input.dataset.rgb.split(',').map(Number));
 
                         if (masterPalettes.length > 0) {
+                            // キャッシュをリセット（選択状態が変わるたびに計算し直すため）
                             colorCache.clear();
 
                             for (let i = 0; i < buf.length; i += 4) {
@@ -1498,88 +1496,92 @@
     function initMasterPresetTable() {
         const container = document.getElementById('px-preset-table');
         container.innerHTML = '';
+        activeMasterColors.clear();
 
-        // --- 1. 全体操作エリア（ここは「強制同期」用） ---
-        const allOpDiv = document.createElement('div');
-        allOpDiv.style.cssText = 'display:flex; gap:10px; padding:8px; background:#1a1a1a; border-bottom:1px solid #444; margin-bottom:10px; position:sticky; top:0; z-index:20;';
-        
-        const btnAllOn = document.createElement('button');
-        btnAllOn.textContent = 'ALL ON';
-        btnAllOn.style.flex = '1';
-        btnAllOn.onclick = () => {
-            // 全ての親と子のチェックを強制的に入れる
-            container.querySelectorAll('input[type="checkbox"]').forEach(c => {
-                c.checked = true;
-            });
-            pxUpdate();
-        };
-
-        const btnAllOff = document.createElement('button');
-        btnAllOff.textContent = 'ALL OFF';
-        btnAllOff.style.flex = '1';
-        btnAllOff.onclick = () => {
-            // 全ての親と子のチェックを強制的に外す
-            container.querySelectorAll('input[type="checkbox"]').forEach(c => {
-                c.checked = false;
-            });
-            pxUpdate();
-        };
-
-        allOpDiv.appendChild(btnAllOn);
-        allOpDiv.appendChild(btnAllOff);
-        container.appendChild(allOpDiv);
-
-        // --- 2. 各グループの生成 ---
+        // ★ Object.entriesを使って、groupNameと一緒にインデックス(groupIdx)を取得
         Object.entries(gameMasterPalette).forEach(([groupName, colors], groupIdx) => {
             const groupDiv = document.createElement('div');
-            groupDiv.className = 'px-preset-group';
-            groupDiv.style.marginBottom = '8px';
+            groupDiv.style.marginBottom = '6px';
 
+            // 親（グループ）ヘッダー
             const header = document.createElement('label');
-            header.style.cssText = 'display:flex; align-items:center; background:#2a2a2a; padding:4px 6px; font-size:11px; color:#00ffcc; cursor:pointer;';
+            // ... (スタイル設定はそのまま) ...
+            header.style.display = 'flex';
+            header.style.alignItems = 'center';
+            header.style.background = '#2a2a2a';
+            header.style.padding = '2px 4px';
+            header.style.fontSize = '11px';
+            header.style.cursor = 'pointer';
 
             const groupCb = document.createElement('input');
             groupCb.type = 'checkbox';
-            groupCb.className = 'group-master-check';
             groupCb.checked = true;
-            
-            // 🌟 ここがポイント：親を動かしても子には干渉せず、再描画だけする
-            groupCb.onchange = () => pxUpdate();
 
             header.appendChild(groupCb);
             header.appendChild(document.createTextNode(` ${groupName}`));
             groupDiv.appendChild(header);
 
+            // 子（各色）のコンテナ
             const childGrid = document.createElement('div');
-            childGrid.style.cssText = 'display:grid; grid-template-columns:repeat(2,1fr); gap:3px; padding:6px; background:#222;';
+            childGrid.style.display = 'grid';
+            childGrid.style.gridTemplateColumns = 'repeat(2, 1fr)';
+            childGrid.style.gap = '3px';
+            childGrid.style.padding = '3px 0 3px 12px';
 
+            // ★ 第2引数で childIdx を取得
             colors.forEach((rgb, childIdx) => {
                 const rgbKey = rgb.join(',');
+                activeMasterColors.add(rgbKey);
+
                 const item = document.createElement('label');
-                item.style.cssText = 'display:flex; align-items:center; font-size:10px; cursor:pointer;';
+                item.style.display = 'flex';
+                item.style.alignItems = 'center';
+                item.style.fontSize = '10px';
+                item.style.cursor = 'pointer';
+                item.style.position = 'relative'; // ★ 番号表示の基準用
 
                 const cb = document.createElement('input');
                 cb.type = 'checkbox';
-                cb.className = 'child-color-check';
                 cb.checked = true;
                 cb.dataset.rgb = rgbKey;
-                
-                // 🌟 子を動かしても親には干渉しない
-                cb.onchange = () => pxUpdate();
+                // ★ ここで「親番号-子番号」を保存しておく
+                cb.dataset.location = `${groupIdx}-${childIdx}`;
 
                 const chip = document.createElement('div');
-                chip.style.cssText = `width:12px; height:12px; background:rgb(${rgbKey}); margin:0 4px; border:1px solid #555;`;
+                // ... (チップのスタイル設定) ...
+                chip.style.width = '12px';
+                chip.style.height = '12px';
+                chip.style.background = `rgb(${rgbKey})`;
+                chip.style.margin = '0 4px';
+                chip.style.border = '1px solid #555';
 
                 item.appendChild(cb);
                 item.appendChild(chip);
                 item.appendChild(document.createTextNode(rgbKey));
                 childGrid.appendChild(item);
+
+                cb.onchange = () => {
+                    if (cb.checked) activeMasterColors.add(rgbKey);
+                    else activeMasterColors.delete(rgbKey);
+                    pxUpdate();
+                };
             });
+
+            groupCb.onchange = () => {
+                const childCbs = childGrid.querySelectorAll('input');
+                childCbs.forEach(ccb => {
+                    ccb.checked = groupCb.checked;
+                    if (groupCb.checked) activeMasterColors.add(ccb.dataset.rgb);
+                    else activeMasterColors.delete(ccb.dataset.rgb);
+                });
+                pxUpdate();
+            };
 
             groupDiv.appendChild(childGrid);
             container.appendChild(groupDiv);
-        });
+        }); // ★ for...in から Object.entries.forEach に変更
     }
+
     // 初期化実行
     initMasterPresetTable();
 
