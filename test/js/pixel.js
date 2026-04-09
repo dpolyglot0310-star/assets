@@ -1493,34 +1493,33 @@
     // 以下20260406追加
 
     // UIの生成
-function initMasterPresetTable() {
+    function initMasterPresetTable() {
         const container = document.getElementById('px-preset-table');
         container.innerHTML = '';
         activeMasterColors.clear();
 
-        // --- 1. 全体操作エリア (All Groups) ---
+        // --- 1. 全体操作 (Global All) ---
         const allOpDiv = document.createElement('div');
-        allOpDiv.style.cssText = 'display:flex; gap:10px; padding:5px; background:#111; border-bottom:1px solid #444; margin-bottom:10px;';
+        allOpDiv.style.cssText = 'display:flex; gap:10px; padding:8px; background:#1a1a1a; border-bottom:1px solid #444; margin-bottom:10px; position:sticky; top:0; z-index:20;';
         
         const btnAllOn = document.createElement('button');
-        btnAllOn.textContent = 'ALL ON';
-        btnAllOn.style.fontSize = '9px';
+        btnAllOn.textContent = 'ALL SELECT';
+        btnAllOn.style.cssText = 'flex:1; font-size:10px; cursor:pointer; padding:4px;';
         btnAllOn.onclick = () => {
             container.querySelectorAll('input[type="checkbox"]').forEach(c => {
-                if(!c.checked) { c.checked = true; c.onchange(); }
+                if(!c.checked) { c.checked = true; c.dispatchEvent(new Event('change')); }
             });
         };
 
         const btnAllOff = document.createElement('button');
-        btnAllOff.textContent = 'ALL OFF';
-        btnAllOff.style.fontSize = '9px';
+        btnAllOff.textContent = 'ALL DESELECT';
+        btnAllOff.style.cssText = 'flex:1; font-size:10px; cursor:pointer; padding:4px;';
         btnAllOff.onclick = () => {
             container.querySelectorAll('input[type="checkbox"]').forEach(c => {
-                if(c.checked) { c.checked = false; c.onchange(); }
+                if(c.checked) { c.checked = false; c.dispatchEvent(new Event('change')); }
             });
         };
 
-        allOpDiv.appendChild(document.createTextNode('Global: '));
         allOpDiv.appendChild(btnAllOn);
         allOpDiv.appendChild(btnAllOff);
         container.appendChild(allOpDiv);
@@ -1528,45 +1527,46 @@ function initMasterPresetTable() {
         // --- 2. 各グループの生成 ---
         Object.entries(gameMasterPalette).forEach(([groupName, colors], groupIdx) => {
             const groupDiv = document.createElement('div');
-            groupDiv.style.marginBottom = '6px';
+            groupDiv.style.marginBottom = '8px';
 
-            const header = document.createElement('div'); // labelからdivへ変更（ボタンを入れるため）
-            header.style.cssText = 'display:flex; align-items:center; background:#2a2a2a; padding:2px 4px; font-size:11px; color:#00ffcc; justify-content:space-between;';
+            const header = document.createElement('div');
+            header.style.cssText = 'display:flex; align-items:center; background:#2a2a2a; padding:4px 6px; font-size:11px; color:#00ffcc; justify-content:space-between; border-radius:4px 4px 0 0;';
 
-            // グループ名とメインのチェックボックス
             const groupTitleSide = document.createElement('label');
-            groupTitleSide.style.cssText = 'display:flex; align-items:center; cursor:pointer;';
+            groupTitleSide.style.cssText = 'display:flex; align-items:center; cursor:pointer; flex:1;';
+            
             const groupCb = document.createElement('input');
             groupCb.type = 'checkbox';
             groupCb.checked = true;
+            
             groupTitleSide.appendChild(groupCb);
             groupTitleSide.appendChild(document.createTextNode(` ${groupName}`));
             header.appendChild(groupTitleSide);
 
-            // グループ内一括操作ボタン（小さいON/OFF）
-            const groupBtns = document.createElement('div');
+            // グループ内一括操作用のリンク
+            const groupLinks = document.createElement('div');
+            groupLinks.style.cssText = 'display:flex; gap:8px;';
             const gOn = document.createElement('span');
             gOn.textContent = '[ON]';
-            gOn.style.cssText = 'margin-left:8px; cursor:pointer; font-size:9px; color:#fff;';
+            gOn.style.cssText = 'cursor:pointer; font-size:9px; color:#fff; text-decoration:underline;';
             const gOff = document.createElement('span');
             gOff.textContent = '[OFF]';
-            gOff.style.cssText = 'margin-left:5px; cursor:pointer; font-size:9px; color:#fff;';
+            gOff.style.cssText = 'cursor:pointer; font-size:9px; color:#fff; text-decoration:underline;';
             
-            groupBtns.appendChild(gOn);
-            groupBtns.appendChild(gOff);
-            header.appendChild(groupBtns);
-            
+            groupLinks.appendChild(gOn);
+            groupLinks.appendChild(gOff);
+            header.appendChild(groupLinks);
             groupDiv.appendChild(header);
 
             const childGrid = document.createElement('div');
-            childGrid.style.cssText = 'display:grid; grid-template-columns:repeat(2,1fr); gap:3px; padding:3px 0 3px 12px;';
+            childGrid.style.cssText = 'display:grid; grid-template-columns:repeat(2,1fr); gap:3px; padding:6px; background:#222; border-radius:0 0 4px 4px;';
 
             colors.forEach((rgb, childIdx) => {
                 const rgbKey = rgb.join(',');
                 activeMasterColors.add(rgbKey);
 
                 const item = document.createElement('label');
-                item.style.cssText = 'display:flex; align-items:center; font-size:10px; cursor:pointer; position:relative;';
+                item.style.cssText = 'display:flex; align-items:center; font-size:10px; cursor:pointer;';
 
                 const cb = document.createElement('input');
                 cb.type = 'checkbox';
@@ -1589,25 +1589,23 @@ function initMasterPresetTable() {
                 };
             });
 
-            // グループ内一括操作のロジック
-            gOn.onclick = () => {
-                childGrid.querySelectorAll('input').forEach(c => { if(!c.checked){ c.checked=true; c.onchange(); } });
-                groupCb.checked = true;
-            };
-            gOff.onclick = () => {
-                childGrid.querySelectorAll('input').forEach(c => { if(c.checked){ c.checked=false; c.onchange(); } });
-                groupCb.checked = false;
-            };
-
-            // 既存のgroupCb.onchangeも維持（必要であれば）
+            // --- ロジックの紐付け ---
             groupCb.onchange = () => {
-                const childCbs = childGrid.querySelectorAll('input');
-                childCbs.forEach(ccb => {
+                childGrid.querySelectorAll('input').forEach(ccb => {
                     ccb.checked = groupCb.checked;
                     if (groupCb.checked) activeMasterColors.add(ccb.dataset.rgb);
                     else activeMasterColors.delete(ccb.dataset.rgb);
                 });
                 pxUpdate();
+            };
+
+            gOn.onclick = () => {
+                groupCb.checked = true;
+                groupCb.dispatchEvent(new Event('change'));
+            };
+            gOff.onclick = () => {
+                groupCb.checked = false;
+                groupCb.dispatchEvent(new Event('change'));
             };
 
             groupDiv.appendChild(childGrid);
