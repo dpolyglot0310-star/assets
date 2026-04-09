@@ -805,20 +805,24 @@
                 if (typeof updatePalette === 'function') updatePalette();
                 if (typeof updatePresetUnderline === 'function') updatePresetUnderline();
                 
-                // 🌟 パレット表示を「マスタープリセット」に完全同期させる
                 if (typeof renderPxPalette === 'function') {
                     let palette = [];
                     
                     if (currentMethod === 'preset') {
-                        // 【マスターモード時】キャンバスは見ず、入力欄（マスター）の色だけを表示
+                        // 🌟 マスターの色一覧から「実際にキャンバスで使われた色」だけを抽出
                         const masterNodes = document.querySelectorAll(`#px-preset-table input[data-rgb]`);
-                        palette = Array.from(masterNodes).map(input => {
-                            const rgb = input.dataset.rgb.split(',').map(Number);
-                            // 誤差が出ないよう、RGBから直接Hexを作る（toHexStrが定義されている前提）
-                            return toHexStr(rgb[0], rgb[1], rgb[2]);
+                        
+                        masterNodes.forEach(input => {
+                            const rgbStr = input.dataset.rgb; // "r,g,b" 形式の文字列
+                            const rgb = rgbStr.split(',').map(Number);
+                            
+                            // 🌟 usedPresetColors に存在するかチェック（実際に塗られたか）
+                            if (usedPresetColors.has(rgbStr)) {
+                                palette.push(toHexStr(rgb[0], rgb[1], rgb[2]));
+                            }
                         });
                     } else {
-                        // 【通常モード時】今まで通りキャンバスから色を抽出
+                        // 通常モードならキャンバスから抽出
                         palette = getHexPaletteFromCanvas(window.virtualCanvas);
                     }
                     
