@@ -710,14 +710,16 @@
                     buf[i] = source.pixels[i];
                 }
 
-                // 4. 減色・量子化の実行 (currentMethod を使用するように修正)
+                // 4. 減色・量子化の実行
                 if (!currentRawMode && currentUseQuant) {
                     if (currentMethod === 'kmeans') {
                         kmeansQuantize(buf, cols, rows, currentStep, currentUseDither);
                     } else if (currentMethod === 'mediancut') {
                         medianCutQuantize(buf, cols, rows, currentStep, currentUseDither);
                     } else if (currentMethod === 'preset') {
-                        applyPresetQuantize(buf, cols, rows);
+                        // 🌟 ここ！ 
+                        // 外部関数 applyMasterPreset() を呼ぶか、中身を直接ここに書く
+                        applyPresetToBuffer(buf, cols, rows); 
                     } else {
                         applyStandardQuantize(buf, cols, rows, currentStep, currentUseDither);
                     }
@@ -861,6 +863,33 @@
                 }
             }
         }
+
+    function applyPresetToBuffer(buf, cols, rows) {
+        const masterNodes = document.querySelectorAll(`#px-preset-table input[data-rgb]`);
+        const masterPalettes = Array.from(masterNodes).map(input => input.dataset.rgb.split(',').map(Number));
+        if (masterPalettes.length === 0) return;
+
+        for (let i = 0; i < buf.length; i += 4) {
+            if (buf[i + 3] < 10) continue; // 透明ドット
+
+            const r = buf[i], g = buf[i+1], b = buf[i+2];
+            let minD = Infinity;
+            let closest = masterPalettes[0];
+
+            for (const m of masterPalettes) {
+                // 色の距離計算
+                const d = Math.pow(r - m[0], 2) + Math.pow(g - m[1], 2) + Math.pow(b - m[2], 2);
+                if (d < minD) {
+                    minD = d;
+                    closest = m;
+                }
+            }
+            // バッファの値をマスターの色に強制書き換え
+            buf[i]   = closest[0];
+            buf[i+1] = closest[1];
+            buf[i+2] = closest[2];
+        }
+    }
 
         // スライダ↔数値入力連動
         const syncNum = (rangeId, numId) => {
