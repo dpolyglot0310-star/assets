@@ -828,18 +828,36 @@
 
                 // --- 描画領域（キャンバスサイズ）の自動調整 ---
 
-                // 1. ズーム倍率を取得
+                // 1. ズーム倍率を取得（window.pxZoom はスライダー等の値を想定）
                 const zoomVal = parseFloat(window.pxZoom) || 1.0; 
-                // 2. 変数名を衝突しにくい名前にし、計算
+
+                // 2. 1ドットあたりの表示ピクセル数を計算
+                // window.gridSize（元のドットの大きさ） × ズーム倍率
                 const displayStep = (parseInt(window.gridSize) || 10) * zoomVal;
 
-                // 3. 実寸サイズを計算
+                // 3. 仮想キャンバスのドット数に基づき、ブラウザ上の「実寸サイズ」を算出
+                // virtualCanvas.width = ドット数（例: 32pxの画像なら32）
                 const targetW = Math.floor(virtualCanvas.width * displayStep);
                 const targetH = Math.floor(virtualCanvas.height * displayStep);
 
-                // 4. リサイズ実行
+                // 4. p5.jsの描画解像度を更新
+                // これにより、内部的なキャンバスの大きさが変わります
                 if (p.width !== targetW || p.height !== targetH) {
                     p.resizeCanvas(targetW, targetH);
+                }
+
+                // 🌟 5. Canvas要素の「見た目のサイズ（CSS）」を強制的に同期
+                // これを入れないと、style="width:32px" などの古い設定に閉じ込められて端が切れます
+                if (p.canvas) {
+                    // インラインスタイルを直接書き換えて「32pxの檻」を壊す
+                    p.canvas.style.width = targetW + 'px';
+                    p.canvas.style.height = targetH + 'px';
+                    
+                    // ドット絵をくっきり表示させるための必須設定
+                    p.canvas.style.imageRendering = 'pixelated';
+                    
+                    // clip属性などによる意図しない切り抜きを防止
+                    p.canvas.style.overflow = 'visible';
                 }
 
                 // --- 6. UI更新と再描画 ---
