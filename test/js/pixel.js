@@ -842,6 +842,15 @@
                     p.resizeCanvas(targetW, targetH);
                 }
 
+                // 🌟 【追加】Canvasの表示サイズをCSSでも強制的に合わせる
+                // これにより、style="width:50px" などで固定されて切れるのを防ぎます
+                if (p.canvas) {
+                    p.canvas.style.width = targetW + 'px';
+                    p.canvas.style.height = targetH + 'px';
+                    // ドットをくっきりさせる
+                    p.canvas.style.imageRendering = 'pixelated';
+                }
+
                 // --- 6. UI更新と再描画 ---
                 if (typeof updatePalette === 'function') updatePalette();
                 if (typeof updatePresetUnderline === 'function') updatePresetUnderline();
