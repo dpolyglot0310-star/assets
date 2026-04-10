@@ -862,32 +862,21 @@
                     renderPxPalette(palette, window.selectedHex || "", swapMap || {});
                 }
 
-                // --- 7. Canvasサイズと親コンテナの高さ調整 ---
-                const target = window.virtualCanvas || (typeof virtualCanvas !== 'undefined' ? virtualCanvas : null);
-                if (target && typeof p !== 'undefined') {
-                    const zoom = parseFloat(document.getElementById('px-zoom').value) || 1;
-                    const baseGrid = window.gridSize || 10;
-                    const currentStep = baseGrid * zoom;
+                // --- 7. 親コンテナの高さ調整のみを行う ---
+                const hInput = document.getElementById('px-container-height');
 
-                    // Canvas自体のリサイズ
-                    p.resizeCanvas(target.width * currentStep, target.height * currentStep);
-
-                    // 🌟 親コンテナの調整（IDをpixel-app-containerに変更）
-                    const container = document.getElementById('pixel-app-container');
-                    const inputHeight = document.getElementById('px-container-height').value;
+                if (container && hInput) {
+                    const targetHeight = hInput.value + "px";
                     
-                    if (container && inputHeight) {
-                        // !importantに近い強度で反映させるため、style属性を直接上書き
-                        container.style.maxHeight = "none"; // もしmax-heightがあれば解除
-                        container.style.height = inputHeight + "px";
-                        container.style.overflow = "auto"; 
-                        container.style.display = "block"; // 確実に表示
-                        
-                        // ボーダーなどを付けて、領域が変わったか確認しやすくする（テスト用）
-                        // container.style.border = "2px solid red"; 
-                    }
+                    // 🌟 親要素のスタイルのみを変更（Canvasの中身には干渉しない）
+                    container.style.height = targetHeight;
+                    container.style.minHeight = targetHeight;
+                    container.style.maxHeight = targetHeight; // 高さを固定して「窓」にする
+                    container.style.overflow = "auto";       // 中身（Canvas）が大きければスクロール
+                    container.style.display = "block"; 
                 }
 
+                // 描画の更新命令だけ送る
                 p.redraw();
                 console.log(`更新完了。解像度: ${targetW}x${targetH}, Zoom: ${zoomVal}`);
             };
