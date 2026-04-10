@@ -818,30 +818,30 @@
                 const gSize = parseInt(window.gridSize) || 10;
                 const displayStep = gSize * zoomVal;
 
-                // 🌟 デバッグログ：ここで計算が合っているか確認
-                console.log({
-                    "元のドット数": vCanvas.width,
-                    "グリッドサイズ": gSize,
-                    "ズーム倍率": zoomVal,
-                    "1ドットの表示サイズ": displayStep
-                });
-
                 const targetW = Math.floor(vCanvas.width * displayStep);
                 const targetH = Math.floor(vCanvas.height * displayStep);
-
-                console.log("適用すべきサイズ:", targetW, "x", targetH);
 
                 // 4. p5.jsの解像度更新
                 p.resizeCanvas(targetW, targetH);
 
-                // 5. CSSを「属性」と「スタイル」の両面から強制上書き
-                if (p.canvas) {
-                    // 既存のインラインスタイルを完全に上書きする
-                    p.canvas.style.cssText = `width: ${targetW}px !important; height: ${targetH}px !important; image-rendering: pixelated; overflow: visible;`;
-                    
-                    // 属性も更新
-                    p.canvas.setAttribute('width', targetW);
-                    p.canvas.setAttribute('height', targetH);
+                // 🌟 5. p.canvas ではなく、IDから直接要素を捕まえる
+                const actualCanvas = document.getElementById('defaultCanvas0');
+
+                if (actualCanvas) {
+                    // インラインスタイルを「!important」付きで完全に書き換える
+                    // 32px の指定をここで物理的に消去します
+                    actualCanvas.style.setProperty('width', targetW + 'px', 'important');
+                    actualCanvas.style.setProperty('height', targetH + 'px', 'important');
+                    actualCanvas.style.imageRendering = 'pixelated';
+                    actualCanvas.style.overflow = 'visible';
+
+                    // 属性も念のため更新
+                    actualCanvas.width = targetW;
+                    actualCanvas.height = targetH;
+
+                    console.log("DOMへの強制適用完了:", actualCanvas.style.width);
+                } else {
+                    console.error("Canvas要素 (#defaultCanvas0) が見つかりませんでした");
                 }
 
                 // --- 6. UI更新と再描画 ---
