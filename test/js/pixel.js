@@ -787,13 +787,19 @@
 
                 for (let i = 0; i < buf.length; i += 4) {
                     let r = buf[i], g = buf[i+1], b = buf[i+2], a = buf[i+3];
+                    
                     if (a < 10) {
                         vCanvas.pixels[i+3] = 0;
                         continue;
                     }
+
                     let fr, fg, fb;
                     if (currentMethod === 'preset') {
-                        fr = r; fg = g; fb = b;
+                        // 🌟 ここがポイント：マスターカラーを適用する際、
+                        // Math.round で確実に「整数」にしてから代入する
+                        fr = Math.round(r);
+                        fg = Math.round(g);
+                        fb = Math.round(b);
                     } else {
                         let hex = toHexStr(r, g, b);
                         let finalHex = currentRawMode ? hex : (swapMap[hex] || hex);
@@ -801,10 +807,12 @@
                         fg = parseInt(finalHex.slice(3, 5), 16);
                         fb = parseInt(finalHex.slice(5, 7), 16);
                     }
+
+                    // vCanvas（仮想キャンバス）に「不純物のない整数RGB」を書き込む
                     vCanvas.pixels[i]   = fr;
                     vCanvas.pixels[i+1] = fg;
                     vCanvas.pixels[i+2] = fb;
-                    vCanvas.pixels[i+3] = a;
+                    vCanvas.pixels[i+3] = 255; // 透過でないなら100%不透明にする
                     usedPresetColors.add(`${fr},${fg},${fb}`);
                 }
                 vCanvas.updatePixels();
