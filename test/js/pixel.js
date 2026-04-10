@@ -825,20 +825,16 @@
                 const container = document.getElementById('pixel-app-container');
                 const wrapper = document.querySelector('.px-canvas-wrap');
 
+                // pxUpdateの後半、サイズ適用の部分を少し補強
                 if (actualCanvas) {
-                    // CSSでの表示サイズを強制。これで「32pxの檻」を壊す
                     actualCanvas.style.setProperty('width', targetW + 'px', 'important');
                     actualCanvas.style.setProperty('height', targetH + 'px', 'important');
-                    actualCanvas.style.imageRendering = 'pixelated';
-
-                    // 🌟親要素のサイズもCanvasに合わせる（これでスクロールバーが出る）
+                    
                     if (container) {
+                        // コンテナのサイズを「今のCanvasのサイズ」でガッチリ固定する
                         container.style.width = targetW + 'px';
                         container.style.height = targetH + 'px';
-                    }
-                    
-                    if (wrapper) {
-                        wrapper.style.overflow = 'auto'; 
+                        container.style.flex = 'none'; // FlexBoxの影響を排除
                     }
                 }
 
