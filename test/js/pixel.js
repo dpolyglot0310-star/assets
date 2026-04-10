@@ -830,27 +830,27 @@
 
                 // 1. ズーム倍率を取得
                 const zoomVal = parseFloat(window.pxZoom) || 1.0; 
-                // 2. 変数名を衝突しにくい名前にし、計算
+                // 2. 1ドットあたりの表示ピクセル数を計算
                 const displayStep = (parseInt(window.gridSize) || 10) * zoomVal;
 
-                // 3. 実寸サイズを計算
+                // 3. 実寸（表示されるべきサイズ）を計算
                 const targetW = Math.floor(virtualCanvas.width * displayStep);
                 const targetH = Math.floor(virtualCanvas.height * displayStep);
 
-                // 4. リサイズ実行
+                // 4. p5.jsの描画解像度を更新
                 if (p.width !== targetW || p.height !== targetH) {
                     p.resizeCanvas(targetW, targetH);
                 }
 
-                // 🌟 【追加】Canvasの表示サイズをCSSでも強制的に合わせる
-                // これにより、style="width:50px" などで固定されて切れるのを防ぎます
+                // 🌟 【ここが重要！】CanvasのCSS表示サイズを計算した実寸に強制変更する
                 if (p.canvas) {
+                    // style属性の width と height を直接書き換えて 50px の呪縛を解く
                     p.canvas.style.width = targetW + 'px';
                     p.canvas.style.height = targetH + 'px';
-                    // ドットをくっきりさせる
+                    
+                    // 拡大時にボヤけないように「pixelated」をセット
                     p.canvas.style.imageRendering = 'pixelated';
                 }
-
                 // --- 6. UI更新と再描画 ---
                 if (typeof updatePalette === 'function') updatePalette();
                 if (typeof updatePresetUnderline === 'function') updatePresetUnderline();
