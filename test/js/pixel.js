@@ -724,7 +724,6 @@
                 const currentUseDither = (window.useDither !== undefined) ? window.useDither : true;
 
                 // 1. 論理サイズ（ドット数）の決定
-                // 画像全体をカバーするように計算
                 const cols = Math.floor(targetImg.width / currentGridSize);
                 const rows = Math.floor(targetImg.height / currentGridSize);
                 
@@ -734,11 +733,10 @@
                 }
 
                 // 2. 仮想キャンバスとソースデータの作成
-                // 🌟 cols, rows を使って「画像全体」が入る箱を作る
                 let vCanvas = p.createImage(cols, rows);
                 let source = p.createImage(cols, rows);
                 
-                // 🌟 重要：元画像の全範囲(width, height)を、新しいドット数(cols, rows)にきっちりコピー
+                // 🌟元画像の全範囲をドット数に合わせてきっちりコピー
                 source.copy(targetImg, 0, 0, targetImg.width, targetImg.height, 0, 0, cols, rows);
                 source.loadPixels();
                 
@@ -812,39 +810,36 @@
                 window.virtualCanvas = vCanvas; 
                 virtualCanvas = vCanvas; 
 
-                // --- 描画領域（キャンバスサイズ）の同期とスクロールバーの強制更新 ---
-
+                // --- 🌟描画領域の同期とスクロールバーの強制更新 ---
                 const zoomVal = parseFloat(window.pxZoom) || 1.0;
-                const targetW = Math.floor(targetImg.width * zoomVal);
-                const targetH = Math.floor(targetImg.height * zoomVal);
+                
+                // 内部描画解像度は「ドット数 × グリッドサイズ × ズーム」で計算
+                const targetW = Math.floor(cols * currentGridSize * zoomVal);
+                const targetH = Math.floor(rows * currentGridSize * zoomVal);
 
-                // 1. p5.jsの解像度更新
+                // 1. p5.jsの解像度更新（これをやらないと中身が切れる）
                 p.resizeCanvas(targetW, targetH);
 
-                // 2. Canvas要素と「その親要素」を両方捕まえる
+                // 2. DOM要素の取得
                 const actualCanvas = document.getElementById('defaultCanvas0');
-                const container = document.getElementById('pixel-app-container'); // 🌟親要素
-                const wrapper = document.querySelector('.px-canvas-wrap');       // 🌟さらに外側の枠
+                const container = document.getElementById('pixel-app-container');
+                const wrapper = document.querySelector('.px-canvas-wrap');
 
                 if (actualCanvas) {
-                    // Canvas自体のサイズを固定
+                    // CSSでの表示サイズを強制。これで「32pxの檻」を壊す
                     actualCanvas.style.setProperty('width', targetW + 'px', 'important');
                     actualCanvas.style.setProperty('height', targetH + 'px', 'important');
+                    actualCanvas.style.imageRendering = 'pixelated';
 
-                    // 🌟 3. 親要素のサイズもCanvasに合わせる
-                    // これにより、親要素が「中身が大きくなった」と認識し、スクロールバーが出現します
+                    // 🌟親要素のサイズもCanvasに合わせる（これでスクロールバーが出る）
                     if (container) {
                         container.style.width = targetW + 'px';
                         container.style.height = targetH + 'px';
-                        container.style.overflow = 'visible';
                     }
                     
                     if (wrapper) {
-                        // ラッパーは画面に収まるサイズ（例：500px）にして、はみ出しをスクロールさせる
                         wrapper.style.overflow = 'auto'; 
                     }
-
-                    console.log(`スクロール範囲更新: ${targetW} x ${targetH}`);
                 }
 
                 // --- 6. UI更新と再描画 ---
@@ -869,7 +864,7 @@
                 }
 
                 p.redraw();
-                console.log("pxUpdate完了。サイズ:", targetW, "x", targetH);
+                console.log(`更新完了。解像度: ${targetW}x${targetH}, Zoom: ${zoomVal}`);
             };
         }, container);
 
