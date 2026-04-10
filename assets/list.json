@@ -779,9 +779,17 @@
     "path": "assets/98_season/99_work/01_no_work_04.png",
     "mode": "100644",
     "type": "blob",
-    "sha": "524be93002c82f4eb68b776b752ec4367b205990",
-    "size": 7126,
-    "url": "https://api.github.com/repos/dpolyglot0310-star/assets/git/blobs/524be93002c82f4eb68b776b752ec4367b205990"
+    "sha": "7b6c47b32c385b0bcfffa0a66a22120933f0ee85",
+    "size": 4305,
+    "url": "https://api.github.com/repos/dpolyglot0310-star/assets/git/blobs/7b6c47b32c385b0bcfffa0a66a22120933f0ee85"
+  },
+  {
+    "path": "assets/98_season/99_work/01_no_work_05.png",
+    "mode": "100644",
+    "type": "blob",
+    "sha": "f55a7c91ca874fa5fafba85799f1ad79a306ace3",
+    "size": 4767,
+    "url": "https://api.github.com/repos/dpolyglot0310-star/assets/git/blobs/f55a7c91ca874fa5fafba85799f1ad79a306ace3"
   },
   {
     "path": "assets/98_season/99_work/02_yasumi_01.png",
