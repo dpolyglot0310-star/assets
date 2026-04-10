@@ -60,7 +60,7 @@ img, video { max-width: 100%; max-height: 100%; object-fit: contain; }
 .crop-handle.tr { top:-9px; right:-9px; cursor:nesw-resize; }
 .crop-handle.bl { bottom:-9px; left:-9px; cursor:nesw-resize; }
 .crop-handle.br { bottom:-9px; right:-9px; cursor:nwse-resize; }
-#pixel-app-container { line-height: 0; transform-origin: 0 0; }
+#pixel-app-container { line-height: 0; transform-origin: 0 0; min-height: 200px; }
 .px-ui { background: #1e1e1e; padding: 16px; border-radius: 10px; }
 .px-row { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
 .px-row label { width: 140px; font-size: 0.78em; color: #aaa; flex-shrink: 0; }
