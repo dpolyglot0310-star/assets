@@ -90,10 +90,12 @@
             };
 
             p.setup = () => {
-                const w = container.parentElement.clientWidth || 640;
-                p.createCanvas(w, 400, p.P2D);
-                p.clear(); // 初期状態を透明にする
+                const container = document.getElementById('pixel-app-container');
+                p.createCanvas(100, 100, p.P2D); // 最初は適当なサイズでOK
+                p.noSmooth();
                 p.noLoop();
+                p.clear(); // 初期状態を透明にする
+                /*
                 new ResizeObserver(() => {
                     const nw = container.parentElement.clientWidth;
                     if (nw > 0 && nw !== p.width) {
@@ -104,6 +106,7 @@
                         p.redraw();
                     }
                 }).observe(container.parentElement);
+                */
 
                 // マウス/タッチイベント
                 const getPos = (e) => {
@@ -857,6 +860,15 @@
                         palette = getHexPaletteFromCanvas(window.virtualCanvas);
                     }
                     renderPxPalette(palette, window.selectedHex || "", swapMap || {});
+                }
+
+                // 🌟 Canvasサイズを計算して適用
+                const target = window.virtualCanvas || (typeof virtualCanvas !== 'undefined' ? virtualCanvas : null);
+                if (target && typeof p !== 'undefined') {
+                    const zoom = parseFloat(document.getElementById('px-zoom').value) || 1;
+                    const baseGrid = window.gridSize || 10;
+                    const currentStep = baseGrid * zoom;
+                    p.resizeCanvas(target.width * currentStep, target.height * currentStep);
                 }
 
                 p.redraw();
