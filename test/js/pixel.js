@@ -848,7 +848,9 @@
                     p.canvas.style.width = targetW + 'px';
                     p.canvas.style.height = targetH + 'px';
                     
-                    // 拡大時にボヤけないように「pixelated」をセット
+                    // 🌟 CSSの「clip」を打ち消す設定を追加
+                    p.canvas.style.overflow = 'visible';
+                    p.canvas.style.overflowClipMargin = 'unset';
                     p.canvas.style.imageRendering = 'pixelated';
                 }
                 // --- 6. UI更新と再描画 ---
