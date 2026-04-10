@@ -812,36 +812,21 @@
                 window.virtualCanvas = vCanvas; 
                 virtualCanvas = vCanvas; 
 
-                // --- 描画領域（キャンバスサイズ）の自動調整 ---
+                // 3. 表示サイズの計算
+                // ズーム倍率を素直に「画像全体」に掛けるように変更
+                const zoomVal = parseFloat(window.pxZoom) || 1.0;
 
-                const zoomVal = parseFloat(window.pxZoom) || 1.0; 
-                const gSize = parseInt(window.gridSize) || 10;
-                const displayStep = gSize * zoomVal;
+                // 🌟 修正案：ドット数ベースではなく「元の画像サイズ」ベースで拡大枠を作る
+                const targetW = Math.floor(targetImg.width * zoomVal);
+                const targetH = Math.floor(targetImg.height * zoomVal);
 
-                const targetW = Math.floor(vCanvas.width * displayStep);
-                const targetH = Math.floor(vCanvas.height * displayStep);
-
-                // 4. p5.jsの解像度更新
+                // p5.jsの解像度更新
                 p.resizeCanvas(targetW, targetH);
 
-                // 🌟 5. p.canvas ではなく、IDから直接要素を捕まえる
-                const actualCanvas = document.getElementById('defaultCanvas0');
-
+                // 強制適用
                 if (actualCanvas) {
-                    // インラインスタイルを「!important」付きで完全に書き換える
-                    // 32px の指定をここで物理的に消去します
                     actualCanvas.style.setProperty('width', targetW + 'px', 'important');
                     actualCanvas.style.setProperty('height', targetH + 'px', 'important');
-                    actualCanvas.style.imageRendering = 'pixelated';
-                    actualCanvas.style.overflow = 'visible';
-
-                    // 属性も念のため更新
-                    actualCanvas.width = targetW;
-                    actualCanvas.height = targetH;
-
-                    console.log("DOMへの強制適用完了:", actualCanvas.style.width);
-                } else {
-                    console.error("Canvas要素 (#defaultCanvas0) が見つかりませんでした");
                 }
 
                 // --- 6. UI更新と再描画 ---
