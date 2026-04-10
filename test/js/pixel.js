@@ -866,17 +866,19 @@
                 const hInput = document.getElementById('px-container-height');
 
                 if (container && hInput) {
-                    const targetHeight = hInput.value + "px";
+                    const inputHeight = hInput.value;
                     
-                    // 🌟 親要素のスタイルのみを変更（Canvasの中身には干渉しない）
-                    container.style.height = targetHeight;
-                    container.style.minHeight = targetHeight;
-                    container.style.maxHeight = targetHeight; // 高さを固定して「窓」にする
-                    container.style.overflow = "auto";       // 中身（Canvas）が大きければスクロール
-                    container.style.display = "block"; 
+                    // Canvas本体のサイズはいじらず、親の高さだけを上書き
+                    container.style.height = inputHeight + "px";
+                    container.style.minHeight = inputHeight + "px"; 
+                    container.style.maxHeight = "none";
+                    
+                    // 横幅が固定されてしまうのを防ぐため、widthは指定しないか auto に
+                    container.style.width = "100%"; 
+                    container.style.overflow = "auto"; 
                 }
 
-                // 描画の更新命令だけ送る
+                // 描画の更新だけ実行
                 p.redraw();
                 console.log(`更新完了。解像度: ${targetW}x${targetH}, Zoom: ${zoomVal}`);
             };
