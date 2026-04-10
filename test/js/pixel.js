@@ -872,12 +872,19 @@
                     // Canvas自体のリサイズ
                     p.resizeCanvas(target.width * currentStep, target.height * currentStep);
 
-                    // 親コンテナの高さ調整
-                    const container = document.getElementById('catalog-container');
+                    // 🌟 親コンテナの調整（IDをpixel-app-containerに変更）
+                    const container = document.getElementById('pixel-app-container');
                     const inputHeight = document.getElementById('px-container-height').value;
+                    
                     if (container && inputHeight) {
+                        // !importantに近い強度で反映させるため、style属性を直接上書き
+                        container.style.maxHeight = "none"; // もしmax-heightがあれば解除
                         container.style.height = inputHeight + "px";
                         container.style.overflow = "auto"; 
+                        container.style.display = "block"; // 確実に表示
+                        
+                        // ボーダーなどを付けて、領域が変わったか確認しやすくする（テスト用）
+                        // container.style.border = "2px solid red"; 
                     }
                 }
 
