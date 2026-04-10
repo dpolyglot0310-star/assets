@@ -812,21 +812,39 @@
                 window.virtualCanvas = vCanvas; 
                 virtualCanvas = vCanvas; 
 
-                // 3. 表示サイズの計算
-                // ズーム倍率を素直に「画像全体」に掛けるように変更
-                const zoomVal = parseFloat(window.pxZoom) || 1.0;
+                // --- 描画領域（キャンバスサイズ）の同期とスクロールバーの強制更新 ---
 
-                // 🌟 修正案：ドット数ベースではなく「元の画像サイズ」ベースで拡大枠を作る
+                const zoomVal = parseFloat(window.pxZoom) || 1.0;
                 const targetW = Math.floor(targetImg.width * zoomVal);
                 const targetH = Math.floor(targetImg.height * zoomVal);
 
-                // p5.jsの解像度更新
+                // 1. p5.jsの解像度更新
                 p.resizeCanvas(targetW, targetH);
 
-                // 強制適用
+                // 2. Canvas要素と「その親要素」を両方捕まえる
+                const actualCanvas = document.getElementById('defaultCanvas0');
+                const container = document.getElementById('pixel-app-container'); // 🌟親要素
+                const wrapper = document.querySelector('.px-canvas-wrap');       // 🌟さらに外側の枠
+
                 if (actualCanvas) {
+                    // Canvas自体のサイズを固定
                     actualCanvas.style.setProperty('width', targetW + 'px', 'important');
                     actualCanvas.style.setProperty('height', targetH + 'px', 'important');
+
+                    // 🌟 3. 親要素のサイズもCanvasに合わせる
+                    // これにより、親要素が「中身が大きくなった」と認識し、スクロールバーが出現します
+                    if (container) {
+                        container.style.width = targetW + 'px';
+                        container.style.height = targetH + 'px';
+                        container.style.overflow = 'visible';
+                    }
+                    
+                    if (wrapper) {
+                        // ラッパーは画面に収まるサイズ（例：500px）にして、はみ出しをスクロールさせる
+                        wrapper.style.overflow = 'auto'; 
+                    }
+
+                    console.log(`スクロール範囲更新: ${targetW} x ${targetH}`);
                 }
 
                 // --- 6. UI更新と再描画 ---
