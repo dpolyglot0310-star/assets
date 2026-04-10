@@ -783,37 +783,51 @@
 
                 // --- 5. vCanvas への書き戻し ---
                 vCanvas.loadPixels();
-                usedPresetColors.clear(); 
+                usedPresetColors.clear();
 
                 for (let i = 0; i < buf.length; i += 4) {
                     let r = buf[i], g = buf[i+1], b = buf[i+2], a = buf[i+3];
                     
+                    // 透過の処理（10以下は完全に透明にする）
                     if (a < 10) {
                         vCanvas.pixels[i+3] = 0;
                         continue;
                     }
 
-                    let fr, fg, fb;
+                    let fr, fg, fb, fa;
                     if (currentMethod === 'preset') {
-                        // 🌟 ここがポイント：マスターカラーを適用する際、
-                        // Math.round で確実に「整数」にしてから代入する
+                        // 🌟 マスタープリセット時：
+                        // 1ピクセルの狂いも許さず、完全にベタ塗り（不透明）にする
                         fr = Math.round(r);
                         fg = Math.round(g);
                         fb = Math.round(b);
+                        fa = 255; // アルファを最大に固定して影を消す
                     } else {
-                        let hex = toHexStr(r, g, b);
-                        let finalHex = currentRawMode ? hex : (swapMap[hex] || hex);
-                        fr = parseInt(finalHex.slice(1, 3), 16);
-                        fg = parseInt(finalHex.slice(3, 5), 16);
-                        fb = parseInt(finalHex.slice(5, 7), 16);
+                        // 🌟 それ以外（Standard, K-means等）：
+                        // 元の計算値（小数含む）やアルファ値を尊重し、階調を残す
+                        if (currentMethod === 'standard' || currentMethod === 'kmeans' || currentMethod === 'mediancut') {
+                            // 減色処理後の色
+                            fr = r; fg = g; fb = b;
+                            fa = a;
+                        } else {
+                            // SwapMapなどの処理
+                            let hex = toHexStr(r, g, b);
+                            let finalHex = currentRawMode ? hex : (swapMap[hex] || hex);
+                            fr = parseInt(finalHex.slice(1, 3), 16);
+                            fg = parseInt(finalHex.slice(3, 5), 16);
+                            fb = parseInt(finalHex.slice(5, 7), 16);
+                            fa = a;
+                        }
                     }
 
-                    // vCanvas（仮想キャンバス）に「不純物のない整数RGB」を書き込む
                     vCanvas.pixels[i]   = fr;
                     vCanvas.pixels[i+1] = fg;
                     vCanvas.pixels[i+2] = fb;
-                    vCanvas.pixels[i+3] = 255; // 透過でないなら100%不透明にする
-                    usedPresetColors.add(`${fr},${fg},${fb}`);
+                    vCanvas.pixels[i+3] = fa; // ここで出し分ける
+                    
+                    if (currentMethod === 'preset') {
+                        usedPresetColors.add(`${fr},${fg},${fb}`);
+                    }
                 }
                 vCanvas.updatePixels();
                 window.virtualCanvas = vCanvas; 
