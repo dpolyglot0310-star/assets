@@ -724,13 +724,21 @@
                 const currentUseDither = (window.useDither !== undefined) ? window.useDither : true;
 
                 // 1. 論理サイズ（ドット数）の決定
+                // 画像全体をカバーするように計算
                 const cols = Math.floor(targetImg.width / currentGridSize);
                 const rows = Math.floor(targetImg.height / currentGridSize);
-                if (cols <= 0 || rows <= 0) return;
+                
+                if (cols <= 0 || rows <= 0) {
+                    console.log("サイズが不正です:", cols, rows);
+                    return;
+                }
 
                 // 2. 仮想キャンバスとソースデータの作成
+                // 🌟 cols, rows を使って「画像全体」が入る箱を作る
                 let vCanvas = p.createImage(cols, rows);
                 let source = p.createImage(cols, rows);
+                
+                // 🌟 重要：元画像の全範囲(width, height)を、新しいドット数(cols, rows)にきっちりコピー
                 source.copy(targetImg, 0, 0, targetImg.width, targetImg.height, 0, 0, cols, rows);
                 source.loadPixels();
                 
@@ -743,44 +751,29 @@
                 // --- 4. 減色・量子化の実行 ---
                 if (!currentRawMode && currentUseQuant) {
                     if (currentMethod === 'preset') {
-                        // 🌟 修正ポイント：チェックが入っている input だけを取得するように変更
                         const masterNodes = document.querySelectorAll(`#px-preset-table input[data-rgb]:checked`);
-                        
-                        // チェックされている色が一つもない場合のガード
                         if (masterNodes.length === 0) {
                             console.log("選択されているマスターカラーがありません");
                             return; 
                         }
-
                         const masterPalettes = Array.from(masterNodes).map(input => input.dataset.rgb.split(',').map(Number));
-
-                        if (masterPalettes.length > 0) {
-                            // キャッシュをリセット（選択状態が変わるたびに計算し直すため）
-                            colorCache.clear();
-
-                            for (let i = 0; i < buf.length; i += 4) {
-                                if (buf[i + 3] < 10) continue;
-                                
-                                const key = `${buf[i]},${buf[i+1]},${buf[i+2]}`;
-                                
-                                if (!colorCache.has(key)) {
-                                    let minD = Infinity;
-                                    let closest = masterPalettes[0];
-                                    for (const m of masterPalettes) {
-                                        // 二乗誤差で最も近い「有効な（チェック済みの）」色を探す
-                                        const d = Math.pow(buf[i]-m[0],2) + Math.pow(buf[i+1]-m[1],2) + Math.pow(buf[i+2]-m[2],2);
-                                        if (d < minD) { minD = d; closest = m; }
-                                    }
-                                    colorCache.set(key, closest);
+                        colorCache.clear();
+                        for (let i = 0; i < buf.length; i += 4) {
+                            if (buf[i + 3] < 10) continue;
+                            const key = `${buf[i]},${buf[i+1]},${buf[i+2]}`;
+                            if (!colorCache.has(key)) {
+                                let minD = Infinity;
+                                let closest = masterPalettes[0];
+                                for (const m of masterPalettes) {
+                                    const d = Math.pow(buf[i]-m[0],2) + Math.pow(buf[i+1]-m[1],2) + Math.pow(buf[i+2]-m[2],2);
+                                    if (d < minD) { minD = d; closest = m; }
                                 }
-
-                                const finalColor = colorCache.get(key);
-                                buf[i] = finalColor[0];
-                                buf[i+1] = finalColor[1];
-                                buf[i+2] = finalColor[2];
+                                colorCache.set(key, closest);
                             }
+                            const finalColor = colorCache.get(key);
+                            buf[i] = finalColor[0]; buf[i+1] = finalColor[1]; buf[i+2] = finalColor[2];
                         }
-                    }else if (currentMethod === 'kmeans') {
+                    } else if (currentMethod === 'kmeans') {
                         kmeansQuantize(buf, cols, rows, currentStep, currentUseDither);
                     } else if (currentMethod === 'mediancut') {
                         medianCutQuantize(buf, cols, rows, currentStep, currentUseDither);
@@ -795,69 +788,60 @@
 
                 for (let i = 0; i < buf.length; i += 4) {
                     let r = buf[i], g = buf[i+1], b = buf[i+2], a = buf[i+3];
-                    
                     if (a < 10) {
                         vCanvas.pixels[i+3] = 0;
                         continue;
                     }
-
                     let fr, fg, fb;
                     if (currentMethod === 'preset') {
-                        // プリセット時は swapMap を通さず、計算結果をそのまま固定
                         fr = r; fg = g; fb = b;
                     } else {
-                        // 通常時は SwapMap (色置換) を適用
                         let hex = toHexStr(r, g, b);
                         let finalHex = currentRawMode ? hex : (swapMap[hex] || hex);
                         fr = parseInt(finalHex.slice(1, 3), 16);
                         fg = parseInt(finalHex.slice(3, 5), 16);
                         fb = parseInt(finalHex.slice(5, 7), 16);
                     }
-
                     vCanvas.pixels[i]   = fr;
                     vCanvas.pixels[i+1] = fg;
                     vCanvas.pixels[i+2] = fb;
                     vCanvas.pixels[i+3] = a;
-
                     usedPresetColors.add(`${fr},${fg},${fb}`);
                 }
-
                 vCanvas.updatePixels();
                 window.virtualCanvas = vCanvas; 
                 virtualCanvas = vCanvas; 
 
                 // --- 描画領域（キャンバスサイズ）の自動調整 ---
 
-                // 1. ズーム倍率を取得（window.pxZoom はスライダー等の値を想定）
                 const zoomVal = parseFloat(window.pxZoom) || 1.0; 
+                const gSize = parseInt(window.gridSize) || 10;
+                const displayStep = gSize * zoomVal;
 
-                // 2. 1ドットあたりの表示ピクセル数を計算
-                // window.gridSize（元のドットの大きさ） × ズーム倍率
-                const displayStep = (parseInt(window.gridSize) || 10) * zoomVal;
+                // 🌟 デバッグログ：ここで計算が合っているか確認
+                console.log({
+                    "元のドット数": vCanvas.width,
+                    "グリッドサイズ": gSize,
+                    "ズーム倍率": zoomVal,
+                    "1ドットの表示サイズ": displayStep
+                });
 
-                // 3. 仮想キャンバスのドット数に基づき、ブラウザ上の「実寸サイズ」を算出
-                // virtualCanvas.width = ドット数（例: 32pxの画像なら32）
-                const targetW = Math.floor(virtualCanvas.width * displayStep);
-                const targetH = Math.floor(virtualCanvas.height * displayStep);
+                const targetW = Math.floor(vCanvas.width * displayStep);
+                const targetH = Math.floor(vCanvas.height * displayStep);
 
-                // 4. p5.jsの描画解像度を更新
-                // これにより、内部的なキャンバスの大きさが変わります
-                if (p.width !== targetW || p.height !== targetH) {
-                    p.resizeCanvas(targetW, targetH);
-                }
+                console.log("適用すべきサイズ:", targetW, "x", targetH);
 
-                // 🌟 5. Canvas要素の「見た目のサイズ（CSS）」を強制的に同期
-                // これを入れないと、style="width:32px" などの古い設定に閉じ込められて端が切れます
+                // 4. p5.jsの解像度更新
+                p.resizeCanvas(targetW, targetH);
+
+                // 5. CSSを「属性」と「スタイル」の両面から強制上書き
                 if (p.canvas) {
-                    // インラインスタイルを直接書き換えて「32pxの檻」を壊す
-                    p.canvas.style.width = targetW + 'px';
-                    p.canvas.style.height = targetH + 'px';
+                    // 既存のインラインスタイルを完全に上書きする
+                    p.canvas.style.cssText = `width: ${targetW}px !important; height: ${targetH}px !important; image-rendering: pixelated; overflow: visible;`;
                     
-                    // ドット絵をくっきり表示させるための必須設定
-                    p.canvas.style.imageRendering = 'pixelated';
-                    
-                    // clip属性などによる意図しない切り抜きを防止
-                    p.canvas.style.overflow = 'visible';
+                    // 属性も更新
+                    p.canvas.setAttribute('width', targetW);
+                    p.canvas.setAttribute('height', targetH);
                 }
 
                 // --- 6. UI更新と再描画 ---
@@ -866,33 +850,24 @@
                 
                 if (typeof renderPxPalette === 'function') {
                     let palette = [];
-                    
                     if (currentMethod === 'preset') {
-                        // 🌟 マスターの色一覧から「実際にキャンバスで使われた色」だけを抽出
                         const masterNodes = document.querySelectorAll(`#px-preset-table input[data-rgb]`);
-                        
                         masterNodes.forEach(input => {
-                            const rgbStr = input.dataset.rgb; // "r,g,b" 形式の文字列
-                            const rgb = rgbStr.split(',').map(Number);
-                            
-                            // 🌟 usedPresetColors に存在するかチェック（実際に塗られたか）
+                            const rgbStr = input.dataset.rgb;
                             if (usedPresetColors.has(rgbStr)) {
+                                const rgb = rgbStr.split(',').map(Number);
                                 palette.push(toHexStr(rgb[0], rgb[1], rgb[2]));
                             }
                         });
                     } else {
-                        // 通常モードならキャンバスから抽出
                         palette = getHexPaletteFromCanvas(window.virtualCanvas);
                     }
-                    
                     renderPxPalette(palette, window.selectedHex || "", swapMap || {});
                 }
 
                 p.redraw();
-                console.log("pxUpdate完了。使用色数:", usedPresetColors.size);
+                console.log("pxUpdate完了。サイズ:", targetW, "x", targetH);
             };
-
-            
         }, container);
 
 
