@@ -90,12 +90,10 @@
             };
 
             p.setup = () => {
-                const container = document.getElementById('pixel-app-container');
-                p.createCanvas(100, 100, p.P2D); // 最初は適当なサイズでOK
-                p.noSmooth();
-                p.noLoop();
+                const w = container.parentElement.clientWidth || 640;
+                p.createCanvas(w, 400, p.P2D);
                 p.clear(); // 初期状態を透明にする
-                /*
+                p.noLoop();
                 new ResizeObserver(() => {
                     const nw = container.parentElement.clientWidth;
                     if (nw > 0 && nw !== p.width) {
@@ -106,7 +104,6 @@
                         p.redraw();
                     }
                 }).observe(container.parentElement);
-                */
 
                 // マウス/タッチイベント
                 const getPos = (e) => {
@@ -862,23 +859,6 @@
                     renderPxPalette(palette, window.selectedHex || "", swapMap || {});
                 }
 
-                // --- 7. 親コンテナの高さ調整のみを行う ---
-                const hInput = document.getElementById('px-container-height');
-
-                if (container && hInput) {
-                    const inputHeight = hInput.value;
-                    
-                    // Canvas本体のサイズはいじらず、親の高さだけを上書き
-                    container.style.height = inputHeight + "px";
-                    container.style.minHeight = inputHeight + "px"; 
-                    container.style.maxHeight = "none";
-                    
-                    // 横幅が固定されてしまうのを防ぐため、widthは指定しないか auto に
-                    container.style.width = "100%"; 
-                    container.style.overflow = "auto"; 
-                }
-
-                // 描画の更新だけ実行
                 p.redraw();
                 console.log(`更新完了。解像度: ${targetW}x${targetH}, Zoom: ${zoomVal}`);
             };
