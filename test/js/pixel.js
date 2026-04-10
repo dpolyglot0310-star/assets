@@ -846,27 +846,38 @@
                 if (typeof updatePresetUnderline === 'function') updatePresetUnderline();
                 
                 if (typeof renderPxPalette === 'function') {
-                    // (パレット描画ロジック：省略)
+                    let palette = []; // 🌟 ここで定義
+                    if (currentMethod === 'preset') {
+                        const masterNodes = document.querySelectorAll(`#px-preset-table input[data-rgb]`);
+                        masterNodes.forEach(input => {
+                            const rgbStr = input.dataset.rgb;
+                            if (usedPresetColors.has(rgbStr)) {
+                                const rgb = rgbStr.split(',').map(Number);
+                                palette.push(toHexStr(rgb[0], rgb[1], rgb[2]));
+                            }
+                        });
+                    } else {
+                        palette = getHexPaletteFromCanvas(window.virtualCanvas);
+                    }
                     renderPxPalette(palette, window.selectedHex || "", swapMap || {});
                 }
 
-                // 🌟 Canvasサイズと親コンテナの高さを調整
+                // --- 7. Canvasサイズと親コンテナの高さ調整 ---
                 const target = window.virtualCanvas || (typeof virtualCanvas !== 'undefined' ? virtualCanvas : null);
                 if (target && typeof p !== 'undefined') {
                     const zoom = parseFloat(document.getElementById('px-zoom').value) || 1;
                     const baseGrid = window.gridSize || 10;
                     const currentStep = baseGrid * zoom;
 
-                    // 1. Canvas自体のリサイズ
+                    // Canvas自体のリサイズ
                     p.resizeCanvas(target.width * currentStep, target.height * currentStep);
 
-                    // 2. 親コンテナの高さ調整
+                    // 親コンテナの高さ調整
                     const container = document.getElementById('catalog-container');
                     const inputHeight = document.getElementById('px-container-height').value;
                     if (container && inputHeight) {
                         container.style.height = inputHeight + "px";
-                        container.style.overflow = "auto"; // スクロールバーを有効に
-                        // もしdisplay:none解除が必要ならここで container.style.display = "block";
+                        container.style.overflow = "auto"; 
                     }
                 }
 
