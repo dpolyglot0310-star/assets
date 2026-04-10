@@ -847,7 +847,7 @@
                 if (typeof updatePresetUnderline === 'function') updatePresetUnderline();
                 
                 if (typeof renderPxPalette === 'function') {
-                    let palette = []; // 🌟 ここで定義
+                    let palette = [];
                     if (currentMethod === 'preset') {
                         const masterNodes = document.querySelectorAll(`#px-preset-table input[data-rgb]`);
                         masterNodes.forEach(input => {
@@ -861,6 +861,15 @@
                         palette = getHexPaletteFromCanvas(window.virtualCanvas);
                     }
                     renderPxPalette(palette, window.selectedHex || "", swapMap || {});
+                }
+
+                // 🌟 Canvasサイズを計算して適用
+                const target = window.virtualCanvas || (typeof virtualCanvas !== 'undefined' ? virtualCanvas : null);
+                if (target && typeof p !== 'undefined') {
+                    const zoom = parseFloat(document.getElementById('px-zoom').value) || 1;
+                    const baseGrid = window.gridSize || 10;
+                    const currentStep = baseGrid * zoom;
+                    p.resizeCanvas(target.width * currentStep, target.height * currentStep);
                 }
 
                 p.redraw();
