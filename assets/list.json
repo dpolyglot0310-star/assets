@@ -768,6 +768,22 @@
     "url": "https://api.github.com/repos/dpolyglot0310-star/assets/git/blobs/443e54c9e720567597c81329f4c39f300fe19a2a"
   },
   {
+    "path": "assets/98_season/98_kimono/04_other_00.png",
+    "mode": "100644",
+    "type": "blob",
+    "sha": "92fb5c3cea4b6c245ef204ee524198a0fd168e9f",
+    "size": 1529640,
+    "url": "https://api.github.com/repos/dpolyglot0310-star/assets/git/blobs/92fb5c3cea4b6c245ef204ee524198a0fd168e9f"
+  },
+  {
+    "path": "assets/98_season/98_kimono/05_yoroi_00.png",
+    "mode": "100644",
+    "type": "blob",
+    "sha": "5795ef8978eb62c2a97ceb0cc9e7894c44b2010a",
+    "size": 1794286,
+    "url": "https://api.github.com/repos/dpolyglot0310-star/assets/git/blobs/5795ef8978eb62c2a97ceb0cc9e7894c44b2010a"
+  },
+  {
     "path": "assets/98_season/98_kimono/Untitled.png",
     "mode": "100644",
     "type": "blob",
