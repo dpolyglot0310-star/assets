@@ -736,6 +736,22 @@
     "url": "https://api.github.com/repos/dpolyglot0310-star/assets/git/blobs/ec6a786117abde32230252ad8b58fff857595ca9"
   },
   {
+    "path": "assets/98_season/99_work/00_workX_00.jpg",
+    "mode": "100644",
+    "type": "blob",
+    "sha": "66140642e0d31943d9508b05b43f4c9bc6a0f1ba",
+    "size": 17909,
+    "url": "https://api.github.com/repos/dpolyglot0310-star/assets/git/blobs/66140642e0d31943d9508b05b43f4c9bc6a0f1ba"
+  },
+  {
+    "path": "assets/98_season/99_work/00_workX_00.png",
+    "mode": "100644",
+    "type": "blob",
+    "sha": "3f2fe8fa45e3675e934f2220d5e297ad5099e555",
+    "size": 5532,
+    "url": "https://api.github.com/repos/dpolyglot0310-star/assets/git/blobs/3f2fe8fa45e3675e934f2220d5e297ad5099e555"
+  },
+  {
     "path": "assets/98_season/99_work/01_no_work.png",
     "mode": "100644",
     "type": "blob",
