@@ -728,6 +728,14 @@
     "url": "https://api.github.com/repos/dpolyglot0310-star/assets/git/blobs/050dd26ac339f778dcd0798c8a0acb100171b233"
   },
   {
+    "path": "assets/98_season/98_kimono/01_kimono_00.png",
+    "mode": "100644",
+    "type": "blob",
+    "sha": "81c8bf08841ada6bfbf8fff1642af3dc387b20a9",
+    "size": 1860429,
+    "url": "https://api.github.com/repos/dpolyglot0310-star/assets/git/blobs/81c8bf08841ada6bfbf8fff1642af3dc387b20a9"
+  },
+  {
     "path": "assets/98_season/99_work/00_base_00.png",
     "mode": "100644",
     "type": "blob",
