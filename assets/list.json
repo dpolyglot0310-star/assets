@@ -728,12 +728,52 @@
     "url": "https://api.github.com/repos/dpolyglot0310-star/assets/git/blobs/050dd26ac339f778dcd0798c8a0acb100171b233"
   },
   {
+    "path": "assets/98_season/98_kimono/01_kimono_00.md",
+    "mode": "100644",
+    "type": "blob",
+    "sha": "4f2f4ad67a2a04e77a521cc87e73c7e6f4bf1567",
+    "size": 125,
+    "url": "https://api.github.com/repos/dpolyglot0310-star/assets/git/blobs/4f2f4ad67a2a04e77a521cc87e73c7e6f4bf1567"
+  },
+  {
     "path": "assets/98_season/98_kimono/01_kimono_00.png",
     "mode": "100644",
     "type": "blob",
     "sha": "81c8bf08841ada6bfbf8fff1642af3dc387b20a9",
     "size": 1860429,
     "url": "https://api.github.com/repos/dpolyglot0310-star/assets/git/blobs/81c8bf08841ada6bfbf8fff1642af3dc387b20a9"
+  },
+  {
+    "path": "assets/98_season/98_kimono/02_yukata_00.md",
+    "mode": "100644",
+    "type": "blob",
+    "sha": "85b98edf3f58701e5e4ae7e23c3e82cc34538ea1",
+    "size": 213,
+    "url": "https://api.github.com/repos/dpolyglot0310-star/assets/git/blobs/85b98edf3f58701e5e4ae7e23c3e82cc34538ea1"
+  },
+  {
+    "path": "assets/98_season/98_kimono/02_yukata_00.png",
+    "mode": "100644",
+    "type": "blob",
+    "sha": "60e38e5aa239d428f76d6f96d2105cf6f530aa2d",
+    "size": 1455288,
+    "url": "https://api.github.com/repos/dpolyglot0310-star/assets/git/blobs/60e38e5aa239d428f76d6f96d2105cf6f530aa2d"
+  },
+  {
+    "path": "assets/98_season/98_kimono/03_other_00.png",
+    "mode": "100644",
+    "type": "blob",
+    "sha": "443e54c9e720567597c81329f4c39f300fe19a2a",
+    "size": 1528506,
+    "url": "https://api.github.com/repos/dpolyglot0310-star/assets/git/blobs/443e54c9e720567597c81329f4c39f300fe19a2a"
+  },
+  {
+    "path": "assets/98_season/98_kimono/Untitled.png",
+    "mode": "100644",
+    "type": "blob",
+    "sha": "017dba3ace9b180f22caeb351276419ea73b3869",
+    "size": 4334,
+    "url": "https://api.github.com/repos/dpolyglot0310-star/assets/git/blobs/017dba3ace9b180f22caeb351276419ea73b3869"
   },
   {
     "path": "assets/98_season/99_work/00_base_00.png",
