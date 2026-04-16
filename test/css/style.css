@@ -49,7 +49,7 @@ img, video { max-width: 100%; max-height: 100%; object-fit: contain; }
     
     margin-bottom: 12px;
     overflow: auto;
-    max-height: 60vh;
+    /* max-height: 60vh; */
     position: relative;
 }
 #crop-overlay { display:none; position:absolute; top:0; left:0; width:100%; height:100%; pointer-events:none; }

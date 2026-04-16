@@ -290,3 +290,21 @@ const USER = 'dpolyglot0310-star';
         document.getElementById('last-update').innerText = `最終更新: ${date.toLocaleString('ja-JP')}`;
     })
     .catch(err => console.log("Timestamp fetch error:", err));
+    
+    // ページの読み込み完了時にイベントを設定
+    document.addEventListener('DOMContentLoaded', () => {
+        const heightInput = document.getElementById('px-wrapper-h');
+        const wrapper = document.querySelector('.px-canvas-wrap');
+
+        if (heightInput && wrapper) {
+            // 入力イベントが発生した時に実行
+            heightInput.addEventListener('input', () => {
+                const newHeight = heightInput.value;
+                // ラッパーの高さを直接書き換え
+                wrapper.style.height = `${newHeight}px`;
+            });
+
+            // 初期値の反映（必要なら）
+            wrapper.style.height = `${heightInput.value}px`;
+        }
+    });
