@@ -1557,7 +1557,11 @@
                 activeMasterColors.add(rgbKey);
 
                 const item = document.createElement('label');
-                item.style.display = 'flex';
+                if (!rgb || rgb.length === 0) {
+                    item.style.display = 'none';
+                } else {
+                    item.style.display = 'flex';
+                }
                 item.style.alignItems = 'center';
                 item.style.fontSize = '10px';
                 item.style.cursor = 'pointer';
