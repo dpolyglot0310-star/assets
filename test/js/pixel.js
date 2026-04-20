@@ -347,18 +347,69 @@
                 const dotX = Math.floor(p.mouseX / currentStep);
                 const dotY = Math.floor(p.mouseY / currentStep);
 
+                // --- 1. ペイントモード時 ---
                 if (window.currentPaintMode === 'cell') {
                     const paintColor = document.getElementById('px-paint-color').value;
                     p.applyPaint(dotX, dotY, paintColor);
-                } else {
-                    // 通常時はガイドの移動
+                    return; // ペイント時はここで終了
+                }
+
+                // --- 2. Shiftキー押下時：ガイドの移動 ---
+                if (p.keyIsDown(p.SHIFT)) {
                     if (typeof guideOrigin !== 'undefined') {
                         guideOrigin.x = dotX;
                         guideOrigin.y = dotY;
                         p.redraw();
                     }
+                    console.log(`ガイド移動: ${dotX}, ${dotY}`);
+                } 
+                // --- 3. 通常クリック：Canvasから色を選択（スポイト機能） ---
+                else {
+                    const target = window.virtualCanvas || virtualCanvas;
+                    if (!target) return;
+
+                    target.loadPixels();
+                    const i = (dotY * target.width + dotX) * 4;
+                    const a = target.pixels[i+3];
+
+                    // 透明ピクセル（a < 10）なら何もしない
+                    if (a < 10) return;
+
+                    const r = target.pixels[i];
+                    const g = target.pixels[i+1];
+                    const b = target.pixels[i+2];
+                    
+                    // RGBをHex形式に変換
+                    const clickedHex = "#" + [r, g, b].map(v => v.toString(16).padStart(2, '0')).join('').toLowerCase();
+
+                    // パレットから該当する色を探してクリックを発火
+                    const allChips = document.querySelectorAll('#px-palette .px-chip');
+                    let found = false;
+
+                    allChips.forEach(chip => {
+                        const box = chip.querySelector('.px-box');
+                        if (!box) return;
+
+                        // ブラウザが保持している背景色 (rgb(r, g, b)) を比較用に変換
+                        if (rgbToHex(box.style.backgroundColor) === clickedHex) {
+                            box.click(); // renderPxPaletteで設定した onclick ロジックを走らせる
+                            found = true;
+                        }
+                    });
+
+                    if (found) {
+                        console.log(`色を選択しました: ${clickedHex}`);
+                    }
                 }
             };
+
+            // ヘルパー：ブラウザの rgb(r, g, b) 文字列を #rrggbb に変換
+            function rgbToHex(rgb) {
+                if (!rgb || rgb.startsWith('#')) return rgb?.toLowerCase();
+                const match = rgb.match(/\d+/g);
+                if (!match) return "";
+                return "#" + match.slice(0, 3).map(v => parseInt(v).toString(16).padStart(2, '0')).join('').toLowerCase();
+            }
 
             // p5.jsのインスタンス内に追加
             p.applyRectPaint = (rx, ry, rw, rh, hex) => {
