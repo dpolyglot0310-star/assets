@@ -1132,6 +1132,30 @@
             num.onchange   = () => { pxUpdate(); };
         };
 
+        const zoomRange = document.getElementById('px-zoom');
+        const zoomNum = document.getElementById('px-zoom-num');
+        const zoomValLabel = document.getElementById('px-zoom-val'); // 100%表示用
+
+        const updateZoomAll = (val, source) => {
+            let z;
+            if (source === 'range') {
+                z = parseFloat(val);
+                zoomNum.value = Math.round(z * 100);
+            } else {
+                z = parseFloat(val) / 100;
+                zoomRange.value = z;
+            }
+            
+            // テキスト表示(100%)があれば更新
+            if (zoomValLabel) zoomValLabel.innerText = Math.round(z * 100) + '%';
+            
+            // 見た目だけ更新（redraw）
+            if (pixelApp) pixelApp.redraw();
+        };
+
+        zoomRange.oninput = () => updateZoomAll(zoomRange.value, 'range');
+        zoomNum.oninput   = () => updateZoomAll(zoomNum.value, 'num');
+
         // --- データ更新が必要（pxUpdate） ---
         syncNum('px-grid',   'px-grid-num');
         syncNum('px-color',  'px-color-num');
@@ -1141,6 +1165,25 @@
         document.getElementById('px-dither').onchange = pxUpdate;
         document.getElementById('px-maxcol-on').onchange = pxUpdate;
         document.getElementById('px-raw').onchange = pxUpdate;
+        
+        // 🌟 ズーム同期（単位変換あり）
+        const zR = document.getElementById('px-zoom');
+        const zN = document.getElementById('px-zoom-num');
+        if(zR && zN) {
+            zR.oninput = () => { zN.value = Math.round(zR.value * 100); pixelApp.redraw(); };
+            zN.oninput = () => { zR.value = zN.value / 100; pixelApp.redraw(); };
+        }
+
+        // 🌟 全表示ボタンもここに紐付け（HTMLに書かない方針）
+        const showNumbersBtn = document.getElementById('px-btn-show-numbers');
+        if (showNumbersBtn) {
+            showNumbersBtn.onclick = (e) => {
+                e.preventDefault();
+                window.isAllNumbersMode = true;
+                window.selectedHex = null;
+                pixelApp.redraw(); // redrawすればdraw内でflagが参照される
+            };
+        }
 
         // --- 見た目だけ更新（redraw） ---
         // 背景色やグリッド線の色は「仮想キャンバス」の中身を書き換えないので、描画だけでOK
@@ -1164,6 +1207,14 @@
             showGuide = e.target.checked;
             pixelApp.redraw(); 
         };
+        // ズームリセットボタンがある場合
+        const zoomResetBtn = document.getElementById('px-btn-zoom-reset');
+        if (zoomResetBtn) {
+            zoomResetBtn.onclick = (e) => {
+                e.preventDefault();
+                updateZoomAll(1.0, 'range');
+            };
+        }
         
         // JS側でIDを指定して紐付け
         const fileInput = document.getElementById('px-file');
