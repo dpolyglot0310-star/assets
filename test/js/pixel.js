@@ -295,6 +295,9 @@
                     for (let y = 0; y < target.height; y++) if(y!==guideOrigin.y) drawText(Math.abs(y-guideOrigin.y), oxp, y*currentStep+currentStep/2, Math.abs(y-guideOrigin.y)%10===0);
                     p.pop();
                 }
+                
+                window.isAllNumbersMode = false;
+                
             };
 
 
