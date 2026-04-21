@@ -116,7 +116,6 @@
                         console.log("全番号表示モードを反映しました");
                     };
                 }
-
                 // リサイズ監視（既存の処理）
                 new ResizeObserver(() => {
                     const nw = container.parentElement.clientWidth;
@@ -127,8 +126,7 @@
                         p.redraw();
                     }
                 }).observe(container.parentElement);
-            };
-
+                
                 // マウス/タッチイベント
                 const getPos = (e) => {
                     const rect = p.canvas.getBoundingClientRect();
@@ -1863,5 +1861,6 @@
         if (typeof initMasterPresetTable === 'function') {
             initMasterPresetTable();
         }
+        
     });
 
