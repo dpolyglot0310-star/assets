@@ -446,6 +446,29 @@
                 }
             };
 
+            p.mouseDragged = () => {
+                // 範囲外なら無視
+                if (p.mouseX < 0 || p.mouseX > p.width || p.mouseY < 0 || p.mouseY > p.height) return;
+
+                const zoom = parseFloat(document.getElementById('px-zoom').value) || 1;
+                const currentStep = (window.gridSize || 10) * zoom;
+                
+                const dotX = Math.floor(p.mouseX / currentStep);
+                const dotY = Math.floor(p.mouseY / currentStep);
+
+                // セルモードの時だけドラッグ塗りを許可
+                if (window.currentPaintMode === 'cell') {
+                    const paintColor = document.getElementById('px-paint-color').value;
+                    // applyPaint を実行（既存のドットを塗る関数）
+                    p.applyPaint(dotX, dotY, paintColor);
+                    // redrawして即座に反映
+                    p.redraw();
+                }
+                
+                // ドラッグ中は全表示モードなどは邪魔になるのでオフにする
+                window.isAllNumbersMode = false;
+            };
+
             // ヘルパー：ブラウザの rgb(r, g, b) 文字列を #rrggbb に変換
             function rgbToHex(rgb) {
                 if (!rgb || rgb.startsWith('#')) return rgb?.toLowerCase();
@@ -1390,36 +1413,51 @@
     function startPaintMode(mode) {
         window.currentPaintMode = mode;
         document.getElementById('px-paint-confirm').style.display = 'inline-block';
-        // ガイド（十字）を一時的に消すと塗りやすいかもしれません
+        
+        if (mode === 'rect') {
+            // 🌟 矩形モードなら crop-rect を表示させる
+            // もし showCropRect() という関数が既にあるならそれを呼ぶ
+            if (typeof showCropRect === 'function') {
+                showCropRect(); 
+            } else {
+                // 関数がない場合は直接 style を変える
+                const cr = document.getElementById('crop-rect');
+                if (cr) cr.style.display = 'block';
+            }
+        }
     }
 
-    // JS側の confirmPaint を修正
     function confirmPaint() {
         if (!pixelApp) return;
         const color = document.getElementById('px-paint-color').value;
 
         if (window.currentPaintMode === 'rect') {
-            // 矩形選択モードなら、crop-rectの範囲を塗る
             const cr = document.getElementById('crop-rect');
-            const cv = pixelApp.canvas;
-            
-            // Canvas上の座標をドット座標に変換
             const zoom = parseFloat(document.getElementById('px-zoom').value) || 1;
             const currentStep = (window.gridSize || 10) * zoom;
 
+            // getBoundingClientRect を使うか parseInt で座標取得
             const rx = Math.floor(parseInt(cr.style.left) / currentStep);
             const ry = Math.floor(parseInt(cr.style.top) / currentStep);
             const rw = Math.floor(parseInt(cr.style.width) / currentStep);
             const rh = Math.floor(parseInt(cr.style.height) / currentStep);
 
+            // 範囲塗りつぶし実行
             pixelApp.applyRectPaint(rx, ry, rw, rh, color);
-        } else {
-            // セル選択モードはクリック時に随時塗られているはず
         }
 
-        hideCropRect();
+        // 🌟 後片付け
+        if (typeof hideCropRect === 'function') {
+            hideCropRect();
+        } else {
+            document.getElementById('crop-rect').style.display = 'none';
+        }
+        
         document.getElementById('px-paint-confirm').style.display = 'none';
         window.currentPaintMode = null;
+
+        // パレットの再描画などを通じて、Canvasの状態を最新にする
+        if (typeof pxUpdate === 'function') pxUpdate();
     }
 
     function stopPaintMode() {
