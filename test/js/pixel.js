@@ -94,19 +94,40 @@
             p.setup = () => {
                 const w = container.parentElement.clientWidth || 640;
                 p.createCanvas(w, 400, p.P2D);
-                p.clear(); // 初期状態を透明にする
+                p.clear(); 
                 p.noSmooth();
-                p.noLoop();
+                p.noLoop(); // ★ redraw() でのみ描画される設定
+
+                // --- 🌟 全番号表示ボタンの制御を追加 ---
+                const showAllBtn = document.getElementById('px-btn-show-numbers');
+                if (showAllBtn) {
+                    showAllBtn.onclick = (e) => {
+                        e.preventDefault();
+                        window.isAllNumbersMode = true; // フラグをON
+                        window.selectedHex = null;      // ハイライト選択は解除
+                        
+                        // パレット側の active 表示なども更新するため pxUpdate を呼ぶ
+                        // (pxUpdate の中で最終的に p.redraw() が呼ばれるはずです)
+                        if (typeof pxUpdate === 'function') {
+                            pxUpdate(); 
+                        } else {
+                            p.redraw(); 
+                        }
+                        console.log("全番号表示モードを反映しました");
+                    };
+                }
+
+                // リサイズ監視（既存の処理）
                 new ResizeObserver(() => {
                     const nw = container.parentElement.clientWidth;
                     if (nw > 0 && nw !== p.width) {
                         p.resizeCanvas(nw, p.height);
-                        p.clear(); // ★リサイズ直後も透明にリセット
-                        // クロップ矩形表示中なら中央に再配置
+                        p.clear(); 
                         if (document.getElementById('crop-rect').style.display !== 'none') showCropRect();
                         p.redraw();
                     }
                 }).observe(container.parentElement);
+            };
 
                 // マウス/タッチイベント
                 const getPos = (e) => {
@@ -1837,25 +1858,10 @@
         });
     }
 
-    window.isAllNumbersMode = false;
     // HTMLの読み込みが終わったらパレットUIを作る
     document.addEventListener('DOMContentLoaded', () => {
         if (typeof initMasterPresetTable === 'function') {
             initMasterPresetTable();
         }
-        
-        const showAllBtn = document.getElementById('px-btn-show-numbers');
-        if (showAllBtn) {
-            showAllBtn.addEventListener('click', () => {
-                // モードをオンにする（トグルにしたい場合は !window.isAllNumbersMode）
-                window.isAllNumbersMode = true;
-                // 番号表示を優先するため、選択色ハイライトは一旦解除する
-                window.selectedHex = null; 
-                
-                if (window.p5inst) window.p5inst.redraw();
-                console.log("全色番号表示モード: ON");
-            });
-        }
-        
     });
 
