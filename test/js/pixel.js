@@ -1417,7 +1417,7 @@
 
     function startPaintMode(mode) {
         window.currentPaintMode = mode;
-        document.getElementById('px-paint-confirm').style.display = 'inline-block';
+        // document.getElementById('px-paint-confirm').style.display = 'inline-block';
         
         if (mode === 'rect') {
             // 🌟 矩形モードなら crop-rect を表示させる
@@ -1458,7 +1458,7 @@
             document.getElementById('crop-rect').style.display = 'none';
         }
         
-        document.getElementById('px-paint-confirm').style.display = 'none';
+        // document.getElementById('px-paint-confirm').style.display = 'none';
         window.currentPaintMode = null;
 
         // パレットの再描画などを通じて、Canvasの状態を最新にする
@@ -1470,7 +1470,7 @@
         hideCropRect();
         document.getElementById('px-paint-bar').style.display='none';
         document.getElementById('px-paint-open').style.display='inline-block';
-        document.getElementById('px-paint-confirm').style.display='none';
+        // document.getElementById('px-paint-confirm').style.display='none';
         document.getElementById('px-cell-btn').style.background='#555';
         document.getElementById('px-rect-btn').style.background='#555';
     }
