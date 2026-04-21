@@ -68,11 +68,11 @@
             <button id="px-paint-open" style="display:none;background:#7b2fff;color:white;border:none;padding:5px 12px;border-radius:6px;cursor:pointer;font-size:12px;" onclick="openPaintBar()">🎨 色変更</button>
         </div>
         <div id="px-paint-bar" style="display:none;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:10px;background:#2a2a2a;padding:8px;border-radius:6px;">
-            <span style="font-size:11px;color:#aaa;">塗色:</span>
+            <span style="font-size:11px;color:#aaa;">一時的塗色:</span>
             <input type="color" id="px-paint-color" value="#ff0000" style="width:36px;height:26px;padding:0;border:none;cursor:pointer;">
             <button id="px-cell-btn" onclick="startPaintMode('cell')" style="background:#555;color:white;border:none;padding:4px 10px;border-radius:4px;cursor:pointer;font-size:11px;">💧 セル選択</button>
-            <button id="px-rect-btn" onclick="startPaintMode('rect')" style="background:#555;color:white;border:none;padding:4px 10px;border-radius:4px;cursor:pointer;font-size:11px;">▭ 範囲選択</button>
-            <!-- <button id="px-paint-confirm" style="display:none;background:#28a745;color:white;border:none;padding:4px 10px;border-radius:4px;cursor:pointer;font-size:11px;" onclick="confirmPaint()">✔ 適用</button> -->
+            <!-- <button id="px-rect-btn" onclick="startPaintMode('rect')" style="background:#555;color:white;border:none;padding:4px 10px;border-radius:4px;cursor:pointer;font-size:11px;">▭ 範囲選択</button> -->
+            <button id="px-paint-confirm" style="display:none;background:#28a745;color:white;border:none;padding:4px 10px;border-radius:4px;cursor:pointer;font-size:11px;" onclick="confirmPaint()">✔ ぬり削除</button>
             <button onclick="stopPaintMode()" style="background:#444;color:#aaa;border:none;padding:4px 10px;border-radius:4px;cursor:pointer;font-size:11px;">× 終了</button>
         </div>
         <div class="px-switch">
