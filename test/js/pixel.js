@@ -222,36 +222,33 @@
 
                 // --- 🌟 追加：全色の番号表示 (ハイライト中以外も表示) ---
                 // ハイライト（selectedHex）がない時、かつスイッチがONの時のみ全表示
-                if (!selectedHex && showAllNumbers && currentStep > 12) {
-                    p.push();
-                    p.textAlign(p.CENTER, p.CENTER);
-                    p.textSize(currentStep * 0.4);
-                    p.noStroke();
+                if (window.isAllNumbersMode && currentStep > 12) {
+                        p.push();
+                        p.textAlign(p.CENTER, p.CENTER);
+                        p.textSize(currentStep * 0.4);
+                        p.noStroke();
 
-                    // 高速化のためMapを作成
-                    const masterMap = new Map();
-                    document.querySelectorAll(`#px-preset-table input[data-rgb]`).forEach(input => {
-                        masterMap.set(input.dataset.rgb, input.dataset.location);
-                    });
+                        const masterMap = new Map();
+                        document.querySelectorAll(`#px-preset-table input[data-rgb]`).forEach(input => {
+                            masterMap.set(input.dataset.rgb, input.dataset.location);
+                        });
 
-                    target.loadPixels();
-                    for (let y = 0; y < target.height; y++) {
-                        for (let x = 0; x < target.width; x++) {
-                            const i = (y * target.width + x) * 4;
-                            if (target.pixels[i+3] < 10) continue;
-
-                            const r = target.pixels[i], g = target.pixels[i+1], b = target.pixels[i+2];
-                            const loc = masterMap.get(`${r},${g},${b}`);
-                            
-                            if (loc) {
-                                const lum = 0.299*r + 0.587*g + 0.114*b;
-                                p.fill(lum > 128 ? 0 : 255);
-                                p.text(loc, x * currentStep + currentStep/2, y * currentStep + currentStep/2);
+                        target.loadPixels();
+                        for (let y = 0; y < target.height; y++) {
+                            for (let x = 0; x < target.width; x++) {
+                                const i = (y * target.width + x) * 4;
+                                if (target.pixels[i+3] < 10) continue;
+                                const r = target.pixels[i], g = target.pixels[i+1], b = target.pixels[i+2];
+                                const loc = masterMap.get(`${r},${g},${b}`);
+                                if (loc) {
+                                    const lum = 0.299*r + 0.587*g + 0.114*b;
+                                    p.fill(lum > 128 ? 0 : 255);
+                                    p.text(loc, x * currentStep + currentStep/2, y * currentStep + currentStep/2);
+                                }
                             }
                         }
+                        p.pop();
                     }
-                    p.pop();
-                }
 
                 // --- 3. グリッドとガイド ---
                 // （以下、提示された既存のグリッド・ガイド処理をそのまま継続）
@@ -382,6 +379,7 @@
 
                 // --- 2. Shiftキー押下時：ガイドの移動 ---
                 if (p.keyIsDown(p.SHIFT)) {
+                    window.isAllNumbersMode = false; // 🌟 スポイト(色選択)したら全表示は終わり
                     if (typeof guideOrigin !== 'undefined') {
                         guideOrigin.x = dotX;
                         guideOrigin.y = dotY;
@@ -1474,6 +1472,7 @@
 
             // クリックイベント（pixelAppが未定義でも壊れないようにガード）
             inner.querySelector('.px-box').onclick = () => {
+                window.isAllNumbersMode = false; // 🌟 ここで全表示を解除
                 // 1. window.selectedHex のトグル（オンオフ）
                 if (window.selectedHex === hv) {
                     window.selectedHex = null; // すでに選択中なら解除
@@ -1838,16 +1837,23 @@
         });
     }
 
+    window.isAllNumbersMode = false;
     // HTMLの読み込みが終わったらパレットUIを作る
     document.addEventListener('DOMContentLoaded', () => {
         if (typeof initMasterPresetTable === 'function') {
             initMasterPresetTable();
         }
         
-        const showAllNumbersCheck = document.getElementById('px-show-all-numbers');
-        if (showAllNumbersCheck) {
-            showAllNumbersCheck.addEventListener('change', () => {
+        const showAllBtn = document.getElementById('px-btn-show-numbers');
+        if (showAllBtn) {
+            showAllBtn.addEventListener('click', () => {
+                // モードをオンにする（トグルにしたい場合は !window.isAllNumbersMode）
+                window.isAllNumbersMode = true;
+                // 番号表示を優先するため、選択色ハイライトは一旦解除する
+                window.selectedHex = null; 
+                
                 if (window.p5inst) window.p5inst.redraw();
+                console.log("全色番号表示モード: ON");
             });
         }
         
