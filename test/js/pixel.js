@@ -103,8 +103,17 @@
                 if (showAllBtn) {
                     showAllBtn.onclick = (e) => {
                         e.preventDefault();
-                        window.isAllNumbersMode = true; // フラグをON
-                        window.selectedHex = null;      // ハイライト選択は解除
+                        
+                        // もし既にON（表示しようとしている）なら、OFFにして再描画
+                        if (window.isAllNumbersMode) {
+                            window.isAllNumbersMode = false;
+                            console.log("番号表示をキャンセルしました");
+                        } else {
+                            // OFFならONにする
+                            window.isAllNumbersMode = true;
+                            window.selectedHex = null;
+                            console.log("番号を表示します");
+                        }
                         
                         // パレット側の active 表示なども更新するため pxUpdate を呼ぶ
                         // (pxUpdate の中で最終的に p.redraw() が呼ばれるはずです)
