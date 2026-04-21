@@ -1029,6 +1029,40 @@
                 p.redraw();
                 console.log(`更新完了。解像度: ${targetW}x${targetH}, Zoom: ${zoomVal}`);
             };
+            
+            
+            // --- 🌟 ズーム専用：Canvasとコンテナのサイズだけを同期させる関数 ---
+            window.syncCanvasSize = function() {
+                const target = window.virtualCanvas;
+                if (!target || !pixelApp) return;
+
+                // pxUpdate内のロジックを流用（単位やIDを統一）
+                const zoomVal = parseFloat(document.getElementById('px-zoom').value) || 1.0;
+                const currentGridSize = parseInt(window.gridSize) || 10;
+                
+                const targetW = Math.floor(target.width * currentGridSize * zoomVal);
+                const targetH = Math.floor(target.height * currentGridSize * zoomVal);
+
+                // 1. p5.js 本体のリサイズ
+                pixelApp.resizeCanvas(targetW, targetH);
+
+                // 2. DOM要素（見た目の檻）のサイズを強制同期
+                const actualCanvas = document.getElementById('defaultCanvas0');
+                const container = document.getElementById('pixel-app-container');
+
+                if (actualCanvas) {
+                    actualCanvas.style.setProperty('width', targetW + 'px', 'important');
+                    actualCanvas.style.setProperty('height', targetH + 'px', 'important');
+                }
+                if (container) {
+                    container.style.width = targetW + 'px';
+                    container.style.height = targetH + 'px';
+                }
+
+                p.redraw();
+            };
+            
+            
         }, container);
 
 
@@ -1178,9 +1212,20 @@
         // 🌟 ズーム同期（単位変換あり）
         const zR = document.getElementById('px-zoom');
         const zN = document.getElementById('px-zoom-num');
-        if(zR && zN) {
-            zR.oninput = () => { zN.value = Math.round(zR.value * 100); pixelApp.redraw(); };
-            zN.oninput = () => { zR.value = zN.value / 100; pixelApp.redraw(); };
+        if (zR && zN) {
+            // スライダー操作時
+            zR.oninput = () => {
+                zN.value = Math.round(zR.value * 100);
+                window.isAllNumbersMode = false; // 番号表示フラグを折る
+                window.syncCanvasSize();        // 🌟 サイズ同期を実行
+            };
+
+            // 数値入力時
+            zN.oninput = () => {
+                zR.value = zN.value / 100;
+                window.isAllNumbersMode = false;
+                window.syncCanvasSize();        // 🌟 サイズ同期を実行
+            };
         }
 
         // 🌟 全表示ボタンもここに紐付け（HTMLに書かない方針）
@@ -1222,6 +1267,7 @@
             zoomResetBtn.onclick = (e) => {
                 e.preventDefault();
                 updateZoomAll(1.0, 'range');
+                window.syncCanvasSize();
             };
         }
         
