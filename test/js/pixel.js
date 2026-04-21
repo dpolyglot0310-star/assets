@@ -26,7 +26,6 @@
     let currentPalette = []; // 現在の画像から抽出された全色 (#hex)
     let swapMap = {};        // { [元の色]: [変更後の色] }
 
-
     // --- ゲームのカラープリセット（後で中身を差し替え） ---
     const gameMasterPalette = {
         "0　白黒系統": [[],[4,22,22],[64,68,69],[128,130,129],[191,193,192],[255,255,255]],
@@ -104,16 +103,8 @@
                     showAllBtn.onclick = (e) => {
                         e.preventDefault();
                         
-                        // もし既にON（表示しようとしている）なら、OFFにして再描画
-                        if (window.isAllNumbersMode) {
-                            window.isAllNumbersMode = false;
-                            console.log("番号表示をキャンセルしました");
-                        } else {
-                            // OFFならONにする
-                            window.isAllNumbersMode = true;
-                            window.selectedHex = null;
-                            console.log("番号を表示します");
-                        }
+                        // 今の状態を反転させる
+                        window.isAllNumbersMode = !window.isAllNumbersMode;
                         
                         // パレット側の active 表示なども更新するため pxUpdate を呼ぶ
                         // (pxUpdate の中で最終的に p.redraw() が呼ばれるはずです)
@@ -305,7 +296,7 @@
                     p.pop();
                 }
                 
-                window.isAllNumbersMode = false;
+                /* window.isAllNumbersMode = false; */
                 
             };
 
@@ -965,7 +956,7 @@
                 const targetH = Math.floor(target.height * currentGridSize * zoomVal);
 
                 // 1. p5.jsのCanvas解像度を更新
-                pixelApp.resizeCanvas(targetW, targetH);
+                p.resizeCanvas(targetW, targetH);
 
                 // 2. DOM要素（Canvas, Container, Wrapper）のスタイル同期
                 const actualCanvas = document.getElementById('defaultCanvas0');
