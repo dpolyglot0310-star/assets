@@ -840,12 +840,8 @@
             window.pxUpdate = function() {
                 console.log("pxUpdate開始");
                 
-                // 画像のチェック
                 const targetImg = window.rawImg;
-                if (!targetImg) {
-                    console.log("rawImgがありません");
-                    return;
-                }
+                if (!targetImg) return;
 
                 // --- 設定値の同期 ---
                 const currentGridSize = parseInt(window.gridSize) || 10;
@@ -855,37 +851,26 @@
                 const currentUseQuant = (window.useQuant !== undefined) ? window.useQuant : true;
                 const currentUseDither = (window.useDither !== undefined) ? window.useDither : true;
 
-                // 1. 論理サイズ（ドット数）の決定
+                // 1. 論理サイズの決定
                 const cols = Math.floor(targetImg.width / currentGridSize);
                 const rows = Math.floor(targetImg.height / currentGridSize);
-                
-                if (cols <= 0 || rows <= 0) {
-                    console.log("サイズが不正です:", cols, rows);
-                    return;
-                }
+                if (cols <= 0 || rows <= 0) return;
 
                 // 2. 仮想キャンバスとソースデータの作成
                 let vCanvas = p.createImage(cols, rows);
                 let source = p.createImage(cols, rows);
-                
-                // 🌟元画像の全範囲をドット数に合わせてきっちりコピー
                 source.copy(targetImg, 0, 0, targetImg.width, targetImg.height, 0, 0, cols, rows);
                 source.loadPixels();
                 
                 // 3. 量子化バッファの準備
                 const buf = new Float32Array(source.pixels.length);
-                for (let i = 0; i < source.pixels.length; i++) {
-                    buf[i] = source.pixels[i];
-                }
+                for (let i = 0; i < source.pixels.length; i++) buf[i] = source.pixels[i];
 
                 // --- 4. 減色・量子化の実行 ---
                 if (!currentRawMode && currentUseQuant) {
                     if (currentMethod === 'preset') {
                         const masterNodes = document.querySelectorAll(`#px-preset-table input[data-rgb]:checked`);
-                        if (masterNodes.length === 0) {
-                            console.log("選択されているマスターカラーがありません");
-                            return; 
-                        }
+                        if (masterNodes.length === 0) return;
                         const masterPalettes = Array.from(masterNodes).map(input => input.dataset.rgb.split(',').map(Number));
                         colorCache.clear();
                         for (let i = 0; i < buf.length; i += 4) {
@@ -915,33 +900,17 @@
                 // --- 5. vCanvas への書き戻し ---
                 vCanvas.loadPixels();
                 usedPresetColors.clear();
-
                 for (let i = 0; i < buf.length; i += 4) {
                     let r = buf[i], g = buf[i+1], b = buf[i+2], a = buf[i+3];
-                    
-                    // 透過の処理（10以下は完全に透明にする）
-                    if (a < 10) {
-                        vCanvas.pixels[i+3] = 0;
-                        continue;
-                    }
+                    if (a < 10) { vCanvas.pixels[i+3] = 0; continue; }
 
                     let fr, fg, fb, fa;
                     if (currentMethod === 'preset') {
-                        // 🌟 マスタープリセット時：
-                        // 1ピクセルの狂いも許さず、完全にベタ塗り（不透明）にする
-                        fr = Math.round(r);
-                        fg = Math.round(g);
-                        fb = Math.round(b);
-                        fa = 255; // アルファを最大に固定して影を消す
+                        fr = Math.round(r); fg = Math.round(g); fb = Math.round(b); fa = 255;
                     } else {
-                        // 🌟 それ以外（Standard, K-means等）：
-                        // 元の計算値（小数含む）やアルファ値を尊重し、階調を残す
-                        if (currentMethod === 'standard' || currentMethod === 'kmeans' || currentMethod === 'mediancut') {
-                            // 減色処理後の色
-                            fr = r; fg = g; fb = b;
-                            fa = a;
+                        if (['standard', 'kmeans', 'mediancut'].includes(currentMethod)) {
+                            fr = r; fg = g; fb = b; fa = a;
                         } else {
-                            // SwapMapなどの処理
                             let hex = toHexStr(r, g, b);
                             let finalHex = currentRawMode ? hex : (swapMap[hex] || hex);
                             fr = parseInt(finalHex.slice(1, 3), 16);
@@ -950,64 +919,26 @@
                             fa = a;
                         }
                     }
-
-                    vCanvas.pixels[i]   = fr;
-                    vCanvas.pixels[i+1] = fg;
-                    vCanvas.pixels[i+2] = fb;
-                    vCanvas.pixels[i+3] = fa; // ここで出し分ける
-                    
-                    if (currentMethod === 'preset') {
-                        usedPresetColors.add(`${fr},${fg},${fb}`);
-                    }
+                    vCanvas.pixels[i] = fr; vCanvas.pixels[i+1] = fg; vCanvas.pixels[i+2] = fb; vCanvas.pixels[i+3] = fa;
+                    if (currentMethod === 'preset') usedPresetColors.add(`${fr},${fg},${fb}`);
                 }
                 vCanvas.updatePixels();
                 window.virtualCanvas = vCanvas; 
-                virtualCanvas = vCanvas; 
 
-                // --- 🌟描画領域の同期とスクロールバーの強制更新 ---
-                const zoomVal = parseFloat(window.pxZoom) || 1.0;
-                
-                // 内部描画解像度は「ドット数 × グリッドサイズ × ズーム」で計算
-                const targetW = Math.floor(cols * currentGridSize * zoomVal);
-                const targetH = Math.floor(rows * currentGridSize * zoomVal);
+                // --- 6. 共通同期処理の呼び出し ---
+                // 🌟 これで Canvas リサイズ、コンテナ更新、redraw がすべて行われます
+                window.syncCanvasSize();
 
-                // 1. p5.jsの解像度更新（これをやらないと中身が切れる）
-                p.resizeCanvas(targetW, targetH);
-
-                // 2. DOM要素の取得
-                const actualCanvas = document.getElementById('defaultCanvas0');
-                const container = document.getElementById('pixel-app-container');
-                const wrapper = document.querySelector('.px-canvas-wrap');
-
-                if (actualCanvas) {
-                    // CSSでの表示サイズを強制。これで「32pxの檻」を壊す
-                    actualCanvas.style.setProperty('width', targetW + 'px', 'important');
-                    actualCanvas.style.setProperty('height', targetH + 'px', 'important');
-                    actualCanvas.style.imageRendering = 'pixelated';
-
-                    // 🌟親要素のサイズもCanvasに合わせる（これでスクロールバーが出る）
-                    if (container) {
-                        container.style.width = targetW + 'px';
-                        container.style.height = targetH + 'px';
-                    }
-                    
-                    if (wrapper) {
-                        wrapper.style.overflow = 'auto'; 
-                    }
-                }
-
-                // --- 6. UI更新と再描画 ---
+                // --- 7. UI（パレット）の更新（pxUpdate固有の処理） ---
                 if (typeof updatePalette === 'function') updatePalette();
                 if (typeof updatePresetUnderline === 'function') updatePresetUnderline();
                 
                 if (typeof renderPxPalette === 'function') {
                     let palette = [];
                     if (currentMethod === 'preset') {
-                        const masterNodes = document.querySelectorAll(`#px-preset-table input[data-rgb]`);
-                        masterNodes.forEach(input => {
-                            const rgbStr = input.dataset.rgb;
-                            if (usedPresetColors.has(rgbStr)) {
-                                const rgb = rgbStr.split(',').map(Number);
+                        document.querySelectorAll(`#px-preset-table input[data-rgb]`).forEach(input => {
+                            if (usedPresetColors.has(input.dataset.rgb)) {
+                                const rgb = input.dataset.rgb.split(',').map(Number);
                                 palette.push(toHexStr(rgb[0], rgb[1], rgb[2]));
                             }
                         });
@@ -1017,51 +948,47 @@
                     renderPxPalette(palette, window.selectedHex || "", swapMap || {});
                 }
 
-                // 🌟 Canvasサイズを計算して適用
-                const target = window.virtualCanvas || (typeof virtualCanvas !== 'undefined' ? virtualCanvas : null);
-                if (target && typeof p !== 'undefined') {
-                    const zoom = parseFloat(document.getElementById('px-zoom').value) || 1;
-                    const baseGrid = window.gridSize || 10;
-                    const currentStep = baseGrid * zoom;
-                    p.resizeCanvas(target.width * currentStep, target.height * currentStep);
-                }
-
-                p.redraw();
-                console.log(`更新完了。解像度: ${targetW}x${targetH}, Zoom: ${zoomVal}`);
+                console.log("pxUpdate完了");
             };
-            
             
             // --- 🌟 ズーム専用：Canvasとコンテナのサイズだけを同期させる関数 ---
             window.syncCanvasSize = function() {
                 const target = window.virtualCanvas;
                 if (!target || !pixelApp) return;
 
-                // pxUpdate内のロジックを流用（単位やIDを統一）
+                // 現在の最新設定を取得
                 const zoomVal = parseFloat(document.getElementById('px-zoom').value) || 1.0;
                 const currentGridSize = parseInt(window.gridSize) || 10;
                 
+                // 描画サイズの計算
                 const targetW = Math.floor(target.width * currentGridSize * zoomVal);
                 const targetH = Math.floor(target.height * currentGridSize * zoomVal);
 
-                // 1. p5.js 本体のリサイズ
+                // 1. p5.jsのCanvas解像度を更新
                 pixelApp.resizeCanvas(targetW, targetH);
 
-                // 2. DOM要素（見た目の檻）のサイズを強制同期
+                // 2. DOM要素（Canvas, Container, Wrapper）のスタイル同期
                 const actualCanvas = document.getElementById('defaultCanvas0');
                 const container = document.getElementById('pixel-app-container');
+                const wrapper = document.querySelector('.px-canvas-wrap');
 
                 if (actualCanvas) {
                     actualCanvas.style.setProperty('width', targetW + 'px', 'important');
                     actualCanvas.style.setProperty('height', targetH + 'px', 'important');
+                    actualCanvas.style.imageRendering = 'pixelated';
                 }
+
                 if (container) {
                     container.style.width = targetW + 'px';
                     container.style.height = targetH + 'px';
                 }
+                
+                if (wrapper) {
+                    wrapper.style.overflow = 'auto'; 
+                }
 
                 p.redraw();
             };
-            
             
         }, container);
 
@@ -1180,20 +1107,19 @@
         const zoomValLabel = document.getElementById('px-zoom-val'); // 100%表示用
 
         const updateZoomAll = (val, source) => {
-            let z;
+            const zR = document.getElementById('px-zoom');
+            const zN = document.getElementById('px-zoom-num');
+            if (!zR || !zN) return;
+
             if (source === 'range') {
-                z = parseFloat(val);
-                zoomNum.value = Math.round(z * 100);
+                zN.value = Math.round(val * 100);
             } else {
-                z = parseFloat(val) / 100;
-                zoomRange.value = z;
+                zR.value = val / 100;
             }
             
-            // テキスト表示(100%)があれば更新
-            if (zoomValLabel) zoomValLabel.innerText = Math.round(z * 100) + '%';
-            
-            // 見た目だけ更新（redraw）
-            if (pixelApp) pixelApp.redraw();
+            // グローバル変数を更新し、枠だけ広げる
+            window.pxZoom = zR.value; 
+            window.syncCanvasSize(); 
         };
 
         zoomRange.oninput = () => updateZoomAll(zoomRange.value, 'range');
@@ -1212,21 +1138,11 @@
         // 🌟 ズーム同期（単位変換あり）
         const zR = document.getElementById('px-zoom');
         const zN = document.getElementById('px-zoom-num');
-        if (zR && zN) {
-            // スライダー操作時
-            zR.oninput = () => {
-                zN.value = Math.round(zR.value * 100);
-                window.isAllNumbersMode = false; // 番号表示フラグを折る
-                window.syncCanvasSize();        // 🌟 サイズ同期を実行
-            };
+        const zReset = document.getElementById('px-btn-zoom-reset');
 
-            // 数値入力時
-            zN.oninput = () => {
-                zR.value = zN.value / 100;
-                window.isAllNumbersMode = false;
-                window.syncCanvasSize();        // 🌟 サイズ同期を実行
-            };
-        }
+        if (zR) zR.oninput = () => updateZoomAll(zR.value, 'range');
+        if (zN) zN.oninput = () => updateZoomAll(zN.value, 'num');
+        if (zReset) zReset.onclick = (e) => { e.preventDefault(); updateZoomAll(1.0, 'range'); };
 
         // 🌟 全表示ボタンもここに紐付け（HTMLに書かない方針）
         const showNumbersBtn = document.getElementById('px-btn-show-numbers');
