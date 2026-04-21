@@ -1135,17 +1135,6 @@
         if (zN) zN.oninput = () => updateZoomAll(zN.value, 'num');
         if (zReset) zReset.onclick = (e) => { e.preventDefault(); updateZoomAll(1.0, 'range'); };
 
-        // 🌟 全表示ボタンもここに紐付け（HTMLに書かない方針）
-        const showNumbersBtn = document.getElementById('px-btn-show-numbers');
-        if (showNumbersBtn) {
-            showNumbersBtn.onclick = (e) => {
-                e.preventDefault();
-                window.isAllNumbersMode = true;
-                window.selectedHex = null;
-                pixelApp.redraw(); // redrawすればdraw内でflagが参照される
-            };
-        }
-
         // --- 見た目だけ更新（redraw） ---
         // 背景色やグリッド線の色は「仮想キャンバス」の中身を書き換えないので、描画だけでOK
         document.getElementById('px-bg').oninput = () => { 
