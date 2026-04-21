@@ -1825,9 +1825,35 @@
         };
 
         document.getElementById('px-zoom').addEventListener('input', (e) => {
-            document.getElementById('px-zoom-val').innerText = Math.round(e.target.value * 100) + "%";
-            pxUpdate(); // または p.redraw()
+            const zoomVal = e.target.value;
+            
+            // パーセント表示用の数値入力欄を更新
+            const zoomNumInput = document.getElementById('px-zoom-num');
+            if (zoomNumInput) {
+                zoomNumInput.value = Math.round(zoomVal * 100);
+            }
+
+            // ズームは「見た目」だけなので redraw で十分（pxUpdateより軽い）
+            if (pixelApp) {
+                pixelApp.redraw();
+            } else if (typeof pxUpdate === 'function') {
+                pxUpdate();
+            }
         });
+
+        document.getElementById('px-zoom-num').addEventListener('input', (e) => {
+            const percent = e.target.value;
+            const zoomRange = document.getElementById('px-zoom');
+            
+            if (zoomRange) {
+                zoomRange.value = percent / 100;
+            }
+
+            if (pixelApp) {
+                pixelApp.redraw();
+            }
+        });
+
 
         // HTMLの各IDと、JS側で使っている変数名を紐付け
         sync('px-grid', 'gridSize');            // Pixel Size
