@@ -416,6 +416,14 @@
     "url": "https://api.github.com/repos/dpolyglot0310-star/assets/git/blobs/86dfbb2715ec5ff8b178b225ec26a9181d0692cc"
   },
   {
+    "path": "assets/00_character/15_penguin/00_penguin_00.png",
+    "mode": "100644",
+    "type": "blob",
+    "sha": "1328edb3fddca63543e9470338b2ac1d2ca629da",
+    "size": 2997149,
+    "url": "https://api.github.com/repos/dpolyglot0310-star/assets/git/blobs/1328edb3fddca63543e9470338b2ac1d2ca629da"
+  },
+  {
     "path": "assets/01_animations/001_tuuuun/.asset/01.png",
     "mode": "100644",
     "type": "blob",
