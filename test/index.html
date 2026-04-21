@@ -80,7 +80,11 @@
             <label><input type="checkbox" id="px-show-guide"> ガイド表示</label>
             <label>ガイド色: <input type="color" id="px-bg" value="#000000" style="width:36px;height:22px;padding:0;border:none;cursor:pointer;"></label>
             <label><input type="checkbox" id="px-gridline"> Grid: <input type="color" id="px-gridline-color" value="#333333" style="width:36px;height:22px;padding:0;border:none;cursor:pointer;"> <input type="number" id="px-gridline-w" value="1" min="1" max="5" style="width:36px;background:#2a2a2a;color:#eee;border:1px solid #444;border-radius:4px;padding:2px 4px;">px</label>
-            <label>Zoom: <input type="range" id="px-zoom" min="0.25" max="50" step="0.05" value="1" style="width:90px;"> <span id="px-zoom-val">100%</span> <button onclick="document.getElementById('px-zoom').value=1;document.getElementById('pixel-app-container').style.transform='scale(1)';document.getElementById('px-zoom-val').innerText='100%';" style="padding:2px 7px;font-size:11px;background:#444;color:#eee;border:none;border-radius:4px;cursor:pointer;" id="px-btn-zoom-reset" >100%</button></label>
+            <label>Zoom: 
+                <input type="number" id="px-zoom-num" value="100" min="10" max="5000" step="10" style="width:55px;"> %
+                <input type="range" id="px-zoom" min="0.1" max="50" step="0.05" value="1" style="width:90px;">
+                <button id="px-btn-zoom-reset" style="padding:2px 7px;font-size:11px;">100%</button>
+            </label>
             <button id="px-btn-show-numbers" class="px-button">全色の番号を表示</button>
         </div>
         <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:10px;">
