@@ -105,7 +105,14 @@
                         
                         // 今の状態を反転させる
                         window.isAllNumbersMode = !window.isAllNumbersMode;
-                        
+                        if (window.isAllNumbersMode) {
+                            window.selectedHex = null;
+                            if (typeof renderPxPalette === 'function') {
+                                // 現在のパレット情報を取得（virtualCanvasから抜くのが一番正確）
+                                const palette = getHexPaletteFromCanvas(window.virtualCanvas);
+                                renderPxPalette(palette, window.selectedHex || "", swapMap || {});
+                            }
+                        }
                         // パレット側の active 表示なども更新するため pxUpdate を呼ぶ
                         // (pxUpdate の中で最終的に p.redraw() が呼ばれるはずです)
                         if (typeof pxUpdate === 'function') {
